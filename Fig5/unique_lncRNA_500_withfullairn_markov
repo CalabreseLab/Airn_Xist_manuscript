@@ -1,0 +1,7 @@
+# 0-order Markov frequencies from file gencodevM25_unique_divide_namedchunks_500_withfullairn.fa
+# seqs: 42328    min: 202    max: 700    avg: 485.9    sum: 20568586    alph: RNA
+# order 0
+A 2.762e-01
+C 2.249e-01
+G 2.239e-01
+U 2.750e-01
