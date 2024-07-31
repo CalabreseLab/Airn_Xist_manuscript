@@ -1,0 +1,260 @@
+Goal: identify differentially expressed genes between the following group of samples:
+
+1. RMCE-empty (4 clones, 1 sample each) vs. RMCE-Xist872-Airn 1000 ng/mL dox (2 clones, 2 samples each)
+2. RMCE-Xist872-Airn 1000 ng/mL dox (2 clones, 2 samples each) vs. RMCE-Xist872-Airn no dox (2 clones, 2 samples each)
+
+Documentation for DESeq2: https://bioconductor.org/packages/devel/bioc/manuals/DESeq2/man/DESeq2.pdf
+Additional info: http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#why-un-normalized-counts
+
+Referring to previous notes (2023-02-07_DESeq2_notes.txt and 2023-04-11_DESeq2_notes.txt)
+
+Using Python (pandas), I generated csv files that have "B6_total" B6-assigned read counts (not normalized) for the 8 samples of interest for each comparison. This csv file only includes genes for which the average number of reads across the 8 samples is 5 or more (pre-filtered to reduce noise of genes that are essentially not expressed). In this csv file, all "metadata" columns were removed, with gene id (gene_chr_start_stop_strand) as each row's "index" and comprised only of the "B6_total" columns for each sample. These files are at C:\Users\jbt\OneDrive - University of North Carolina at Chapel Hill\Postdoc (non-Dropbox)\Bioinformatics\2023-04-11_RMCE-Airn_RNA-seq:
+
+2024-04-30_RMCE_B6_reads_empty_XA_dox_for_DESeq2.csv
+
+Opened RStudio with R 4.1.0 (desktop version)
+
+Installed DESeq2 package (source: https://bioconductor.org/packages/release/bioc/html/DESeq2.html):
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+Install was successful. During install, was asked to update source packages, responded to update all with "a , enter"
+
+Got message:
+
+Warning message:
+package ‘BiocManager’ was built under R version 4.1.2 
+
+Should hopefully be okay unless I run into issues: https://support.bioconductor.org/p/9138963/
+
+setwd("C:\\Users\\jbt\\OneDrive - University of North Carolina at Chapel Hill\\Postdoc (non-Dropbox)\\\\Bioinformatics\\2024-04-30_RMCE-Xist872-Airn_RNA-seq")
+
+Read in the first csv, telling read.csv that I want the first column to be the row names
+
+counts1 <- read.csv("2024-04-30_RMCE_B6_reads_empty_XA_dox_for_DESeq2.csv", row.names = 1)
+
+head(counts1)
+                                 empty1_RNAseq_B6_total empty2_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       313                    255
+Mrpl15_chr1_4773206_4785739_(-)                     440                    311
+Lypla1_chr1_4807788_4848410_(+)                     513                    249
+Gm37988_chr1_4807892_4886770_(+)                    369                    247
+Tcea1_chr1_4857814_4897909_(+)                      316                    155
+Rgs20_chr1_4909576_5070285_(-)                       29                     16
+                                 empty3_RNAseq_B6_total empty4_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       374                     40
+Mrpl15_chr1_4773206_4785739_(-)                     251                    257
+Lypla1_chr1_4807788_4848410_(+)                     272                    243
+Gm37988_chr1_4807892_4886770_(+)                    211                    241
+Tcea1_chr1_4857814_4897909_(+)                      171                    159
+Rgs20_chr1_4909576_5070285_(-)                       16                     32
+                                 XA1_dox_rep1_RNAseq_B6_total XA1_dox_rep2_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                             231                          233
+Mrpl15_chr1_4773206_4785739_(-)                           350                          293
+Lypla1_chr1_4807788_4848410_(+)                           282                          254
+Gm37988_chr1_4807892_4886770_(+)                          285                          271
+Tcea1_chr1_4857814_4897909_(+)                            217                          213
+Rgs20_chr1_4909576_5070285_(-)                             49                           48
+                                 XA2_dox_rep1_RNAseq_B6_total XA2_dox_rep2_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                             123                          120
+Mrpl15_chr1_4773206_4785739_(-)                           433                          302
+Lypla1_chr1_4807788_4848410_(+)                           294                          246
+Gm37988_chr1_4807892_4886770_(+)                          324                          245
+Tcea1_chr1_4857814_4897909_(+)                            284                          190
+Rgs20_chr1_4909576_5070285_(-)                             28                           36
+
+class(counts1) #Returns "data.frame"
+
+This is a data frame, need it as a matrix for DESeq2
+
+counts1_matrix <- as.matrix(counts1)
+
+head(counts1_matrix) #good
+
+class(counts1_matrix) #returns "matrix" "array"
+
+Will use the following function to generate a DESeqDataSet (don't run this, just showing for organization):
+
+DESeqDataSetFromMatrix(
+countData,
+colData,
+design,
+tidy = FALSE,
+ignoreRank = FALSE,
+...
+)
+
+My matrix counts_matrix will be the countsData input matrix.
+
+Need to generate colData data frame: "a DataFrame or data.frame with at least a single column. Rows of colData correspond to columns of countData." So I need to generate a data frame with 8 rows, each with the names of the counts_matrix columns, and one column, with name I'll give as "genotype", and entries as either "empty" or "Xist1000ngmL" so DESeq2 knows how to group the 8 samples.
+
+column_data1 <- data.frame(
+	genotype = c("empty", "empty", "empty", "empty", "Xist872Airn", "Xist872Airn", "Xist872Airn", "Xist872Airn"),
+	row.names = colnames(counts1_matrix)
+)
+
+column_data1
+
+                               genotype
+empty1_RNAseq_B6_total             empty
+empty2_RNAseq_B6_total             empty
+empty3_RNAseq_B6_total             empty
+empty4_RNAseq_B6_total             empty
+XA1_dox_rep1_RNAseq_B6_total Xist872Airn
+XA1_dox_rep2_RNAseq_B6_total Xist872Airn
+XA2_dox_rep1_RNAseq_B6_total Xist872Airn
+XA2_dox_rep2_RNAseq_B6_total Xist872Airn
+
+Success!
+
+Run the DESeqDataSetFromMatrix function, which should output a DESeqDataSet object called dds. First need to load the DESeq2 package that I downloaded:
+
+library("DESeq2")
+
+#output:
+Warning messages:
+1: package ‘DESeq2’ was built under R version 4.1.1 
+2: package ‘S4Vectors’ was built under R version 4.1.3 
+3: package ‘BiocGenerics’ was built under R version 4.1.1 
+4: package ‘IRanges’ was built under R version 4.1.1 
+5: package ‘GenomicRanges’ was built under R version 4.1.2 
+6: package ‘GenomeInfoDb’ was built under R version 4.1.2 
+7: package ‘SummarizedExperiment’ was built under R version 4.1.1 
+8: package ‘MatrixGenerics’ was built under R version 4.1.1 
+9: package ‘matrixStats’ was built under R version 4.1.3 
+10: package ‘Biobase’ was built under R version 4.1.1
+
+dds1 <- DESeqDataSetFromMatrix(countData = counts1_matrix, colData = column_data1, design = ~ genotype)
+
+#output:
+Warning message:
+In DESeqDataSet(se, design = design, ignoreRank) :
+  some variables in design formula are characters, converting to factors
+
+#We'll see if is okay
+
+dds1
+
+class: DESeqDataSet 
+dim: 15011 8 
+metadata(1): version
+assays(1): counts
+rownames(15011): Xkr4_chr1_3205901_3671498_(-) Mrpl15_chr1_4773206_4785739_(-) ...
+  Mid1-ps1_chrY_90753057_90763485_(+) Gm47283_chrY_90784738_90816465_(+)
+rowData names(0):
+colnames(8): empty1_RNAseq_B6_total empty2_RNAseq_B6_total ...
+  XA2_dox_rep1_RNAseq_B6_total XA2_dox_rep2_RNAseq_B6_total
+colData names(1): genotype
+
+Next, run the DESeq function on dds with default settings.
+
+The following command from the Bioconductor site seems odd (overwriting the dds1 object with the DESeq output?), but will do it as they say:
+
+dds1 <- DESeq(dds1)
+
+Now output results as res:
+
+res1 <- results(dds1)
+
+res1
+
+log2 fold change (MLE): genotype Xist872Airn vs empty 
+Wald test p-value: genotype Xist872Airn vs empty 
+DataFrame with 15011 rows and 6 columns
+                                       baseMean log2FoldChange     lfcSE      stat
+                                      <numeric>      <numeric> <numeric> <numeric>
+Xkr4_chr1_3205901_3671498_(-)           219.083      -1.002202  0.636704  -1.57405
+Mrpl15_chr1_4773206_4785739_(-)         329.664      -0.394857  0.197463  -1.99965
+Lypla1_chr1_4807788_4848410_(+)         300.962      -0.768996  0.230672  -3.33372
+Gm37988_chr1_4807892_4886770_(+)        275.302      -0.452113  0.175634  -2.57417
+Tcea1_chr1_4857814_4897909_(+)          212.395      -0.350979  0.237640  -1.47693
+...                                         ...            ...       ...       ...
+Gm15246_chrX_169320622_169368190_(+)    96.1566       0.172638  0.197535  0.873964
+BC022960_chrX_169368189_169370003_(+)   11.5892       0.897722  0.437129  2.053678
+Mid1_chrX_169685199_170005736_(+)     3773.7061      -4.283480  1.215359 -3.524457
+Mid1-ps1_chrY_90753057_90763485_(+)     21.0117      -0.138652  0.390506 -0.355057
+Gm47283_chrY_90784738_90816465_(+)    9059.9545      -0.694171  0.142968 -4.855421
+                                           pvalue        padj
+                                        <numeric>   <numeric>
+Xkr4_chr1_3205901_3671498_(-)         0.115476708   0.2906767
+Mrpl15_chr1_4773206_4785739_(-)       0.045538468   0.1601153
+Lypla1_chr1_4807788_4848410_(+)       0.000856927   0.0108700
+Gm37988_chr1_4807892_4886770_(+)      0.010048082   0.0597268
+Tcea1_chr1_4857814_4897909_(+)        0.139693372   0.3282401
+...                                           ...         ...
+Gm15246_chrX_169320622_169368190_(+)  3.82138e-01 5.93778e-01
+BC022960_chrX_169368189_169370003_(+) 4.00068e-02 1.47218e-01
+Mid1_chrX_169685199_170005736_(+)              NA          NA
+Mid1-ps1_chrY_90753057_90763485_(+)   7.22547e-01 8.51217e-01
+Gm47283_chrY_90784738_90816465_(+)    1.20131e-06 7.04363e-05
+
+Summarize results and make MA plot showing significant genes:
+
+summary(res1) #default p-adj is 0.1, use alpha argument to change
+
+out of 15011 with nonzero total read count
+adjusted p-value < 0.1
+LFC > 0 (up)       : 1647, 11%
+LFC < 0 (down)     : 1672, 11%
+outliers [1]       : 1, 0.0067%
+low counts [2]     : 0, 0%
+(mean count < 4)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+
+summary(res1, alpha = 0.01)
+
+out of 15011 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 517, 3.4%
+LFC < 0 (down)     : 606, 4%
+outliers [1]       : 1, 0.0067%
+low counts [2]     : 0, 0%
+(mean count < 4)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+Saved output to add to DESeq2 Supplemental Table 1
+
+write.csv(as.data.frame(res1), 
+          file="2024-04-30_RMCE_Xist872Airn_vs_empty_DESeq2_results.csv")
+
+
+
+I want to plot chr6 genes specifically (and count number significantly up and down). First subset out the res objects..
+
+
+res1_chr6 <- res1[grep("_chr6_", rownames(res1)), ]
+res1_chr6
+
+summary(res1_chr6, alpha = 0.01)
+
+out of 728 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 9, 1.2%
+LFC < 0 (down)     : 63, 8.7%
+outliers [1]       : 0, 0%
+low counts [2]     : 0, 0%
+(mean count < 4)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+par(mar = c(6.1, 7.0, 6.1, 3.2))
+plotMA(res1_chr6, ylim=c(-2.2,2.2), alpha = 0.01, cex = 1.5, colSig = rgb(197, 121, 205, max = 255, alpha = 150), colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste(italic("Xist"), "872-", italic("Airn"), " vs. Empty")), ylab = "log2 fold change", cex.lab = 2.5, cex.axis = 2.5, cex.main = 2.5, xaxt = "n", yaxt = "n")
+> axis(1, at = c(10, 100, 1000), labels = c(10, 100, 1000), cex.axis = 2.5, mgp=c(3,1.3,0))
+> axis(2, at = c(-2, -1, 0, 1, 2), labels = c(-2, " ", 0, " ", 2), cex.axis = 2.5, mgp=c(3,0.6,0))
+
+Saved image as PDF in R Studio GUI
+
+
+
+
+
+
+
+
+
+
+
