@@ -1,0 +1,111 @@
+---
+title: "05_01_24_Airn_RMCE_RPKM"
+author: "Mickey Murvin"
+date: "2024-05-01"
+output: html_document
+---
+Use to measure RPKM.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+
+```{r}
+install.packages("tidyverse", dependencies = TRUE )
+library(tidyverse)
+library(readr)
+
+library(dplyr)
+library(readr)
+```
+
+## Read in file with read counts to normalize to aligned reads
+
+```{r}
+
+
+file <- read.delim("/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/05_01_24/Airn_fc_total.txt", header = FALSE) 
+
+
+## read in file with read counts per sample
+## wc -l *q30.sam (117 lines are header)
+read.counts <- read.table(file="/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/05_01_24/read_counts_Airn.txt", header = TRUE, stringsAsFactors = FALSE)
+read.counts$Reads <- (read.counts$Reads -117)/1000000
+read.counts_ordered <- read.counts[c("Dataset","Reads")]
+fc <- t(file)
+colnames(fc) <- c("Dataset", "Counts")
+
+data_merge <- merge(fc, read.counts_ordered, by = "Dataset" )
+head (data_merge)
+
+```
+
+
+## To find RPKM of Airn89 (with length 88754) using a featureCounts file counting Airn89
+
+```{r}
+length = 88754
+data_merge$Counts <- as.numeric(data_merge$Counts)
+data_merge$Reads <- as.numeric(data_merge$Reads)
+data_merge$RPM <- data_merge$Counts/data_merge$Reads
+data_merge$RPKM <- data_merge$RPM/(length/1000)
+
+table <- select(data_merge, Dataset, RPKM)
+write.table(table, "/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/05_01_24/rmce_Airn89_rpkm-summary.txt", append = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+```
+
+## Now to count Rtta reads in each sample (using a featureCounts file counting Rtta)
+
+
+
+```{r}
+install.packages("tidyverse", dependencies = TRUE )
+library(tidyverse)
+library(readr)
+
+library(dplyr)
+library(readr)
+```
+
+
+```{r}
+
+
+file <- read.delim("/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/05_01_24/Rtta_fc_total.txt", header = FALSE) 
+
+
+## read in file with read counts per sample
+## wc -l *q30.sam (117 lines are header)
+read.counts <- read.table(file="/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/05_01_24/read_counts.txt", header = TRUE, stringsAsFactors = FALSE)
+read.counts$Reads <- (read.counts$Reads -117)/1000000
+read.counts_ordered <- read.counts[c("Dataset","Reads")]
+#only want Rtta
+file <- file[-c(2, 4), ]
+fc <- t(file)
+colnames(fc) <- c("Dataset", "Counts")
+
+data_merge <- merge(fc, read.counts_ordered, by = "Dataset" )
+head (data_merge)
+
+```
+
+
+
+
+```{r}
+#length of Rtta
+length = 774
+data_merge$Counts <- as.numeric(data_merge$Counts)
+data_merge$Reads <- as.numeric(data_merge$Reads)
+data_merge$RPM <- data_merge$Counts/data_merge$Reads
+data_merge$RPKM <- data_merge$RPM/(length/1000)
+
+table <- select(data_merge, Dataset, RPKM)
+write.table(table, "/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/05_01_24/rmce_Rtta_rpkm-summary.txt", append = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+```
+
+
