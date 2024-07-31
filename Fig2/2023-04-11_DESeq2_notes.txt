@@ -1,0 +1,829 @@
+Goal: identify differentially expressed genes between the following groups of samples:
+
+ 1.   RMCE-empty (4 clones, 1 sample each) vs. RMCE-Xist 1000 ng/mL (4 clones, 1 sample each)
+ 2.   RMCE-empty (4 clones, 1 sample each) vs. RMCE-Xist 10 ng/mL (2 clones, 2 samples each)
+ 3.   RMCE-empty (4 clones, 1 sample each) vs. RMCE-Airn 3d (2 clones, 2 samples each)
+ 4.   RMCE-empty (4 clones, 1 sample each) vs. RMCE-Airn 7 d (2 clones, 2 samples each)
+
+
+Documentation for DESeq2: https://bioconductor.org/packages/devel/bioc/manuals/DESeq2/man/DESeq2.pdf
+Additional info: http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#why-un-normalized-counts
+
+Referring to previous notes (2023-02-07_DESeq2_notes.txt)
+
+Using Python (pandas), I generated csv files that have "B6_total" B6-assigned read counts (not normalized) for the 8 samples of interest for each comparison. This csv file only includes genes for which the average number of reads across the 8 samples is 5 or more (pre-filtered to reduce noise of genes that are essentially not expressed). In this csv file, all "metadata" columns were removed, with gene id (gene_chr_start_stop_strand) as each row's "index" and comprised only of the "B6_total" columns for each sample. These files are at C:\Users\jbt\OneDrive - University of North Carolina at Chapel Hill\Postdoc (non-Dropbox)\Bioinformatics\2023-04-11_RMCE-Airn_RNA-seq:
+
+2023-05-03_RMCE_B6_reads_Xist10ngmL_empty_for_DESeq2.csv
+
+Opened RStudio with R 4.1.0 (desktop version)
+
+Installed DESeq2 package (source: https://bioconductor.org/packages/release/bioc/html/DESeq2.html):
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+Install was successful. During install, was asked to update source packages, responded to update all with "a , enter"
+
+Got message:
+
+Warning message:
+package(s) not installed when version(s) same as current; use `force = TRUE` to
+  re-install: 'DESeq2
+
+Should be okay unless I run into issues: https://support.bioconductor.org/p/9138963/
+
+setwd("C:\\Users\\jbt\\OneDrive - University of North Carolina at Chapel Hill\\Postdoc (non-Dropbox)\\\\Bioinformatics\\2023-04-11_RMCE_Airn_Xist_RNA-seq")
+
+Read in the first csv, telling read.csv that I want the first column to be the row names
+
+counts1 <- read.csv("2023-04-11_RMCE_B6_reads_Xist1000ngmL_empty_for_DESeq2.csv", row.names = 1)
+
+head(counts1)
+                                 empty1_RNAseq_B6_total empty2_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       313                    255
+Mrpl15_chr1_4773206_4785739_(-)                     440                    311
+Lypla1_chr1_4807788_4848410_(+)                     513                    249
+Gm37988_chr1_4807892_4886770_(+)                    369                    247
+Tcea1_chr1_4857814_4897909_(+)                      316                    155
+Rgs20_chr1_4909576_5070285_(-)                       29                     16
+                                 empty3_RNAseq_B6_total empty4_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       374                     40
+Mrpl15_chr1_4773206_4785739_(-)                     251                    257
+Lypla1_chr1_4807788_4848410_(+)                     272                    242
+Gm37988_chr1_4807892_4886770_(+)                    211                    241
+Tcea1_chr1_4857814_4897909_(+)                      171                    159
+Rgs20_chr1_4909576_5070285_(-)                       16                     32
+                                 Xist1_RNAseq_B6_total Xist3_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                      197                   235
+Mrpl15_chr1_4773206_4785739_(-)                    237                   351
+Lypla1_chr1_4807788_4848410_(+)                    241                   360
+Gm37988_chr1_4807892_4886770_(+)                   230                   263
+Tcea1_chr1_4857814_4897909_(+)                     160                   192
+Rgs20_chr1_4909576_5070285_(-)                      12                    33
+                                 Xist4_RNAseq_B6_total Xist5_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                      250                   262
+Mrpl15_chr1_4773206_4785739_(-)                    186                   310
+Lypla1_chr1_4807788_4848410_(+)                    216                   325
+Gm37988_chr1_4807892_4886770_(+)                   176                   215
+Tcea1_chr1_4857814_4897909_(+)                     121                   157
+Rgs20_chr1_4909576_5070285_(-)                      13                    16
+
+class(counts1) #Returns "data.frame"
+
+This is a data frame, need it as a matrix for DESeq2
+
+counts1_matrix <- as.matrix(counts1)
+
+head(counts1_matrix) #good
+
+class(counts1_matrix) #returns "matrix" "array"
+
+Will use the following function to generate a DESeqDataSet (don't run this, just showing for organization):
+
+DESeqDataSetFromMatrix(
+countData,
+colData,
+design,
+tidy = FALSE,
+ignoreRank = FALSE,
+...
+)
+
+My matrix counts_matrix will be the countsData input matrix.
+
+Need to generate colData data frame: "a DataFrame or data.frame with at least a single column. Rows of colData correspond to columns of countData." So I need to generate a data frame with 8 rows, each with the names of the counts_matrix columns, and one column, with name I'll give as "genotype", and entries as either "empty" or "Xist1000ngmL" so DESeq2 knows how to group the 8 samples.
+
+column_data1 <- data.frame(
+	genotype = c("empty", "empty", "empty", "empty", "Xist1000ngmL", "Xist1000ngmL", "Xist1000ngmL", "Xist1000ngmL"),
+	row.names = colnames(counts1_matrix)
+)
+
+column_data1
+
+                           genotype
+empty1_RNAseq_B6_total        empty
+empty2_RNAseq_B6_total        empty
+empty3_RNAseq_B6_total        empty
+empty4_RNAseq_B6_total        empty
+Xist1_RNAseq_B6_total  Xist1000ngmL
+Xist3_RNAseq_B6_total  Xist1000ngmL
+Xist4_RNAseq_B6_total  Xist1000ngmL
+Xist5_RNAseq_B6_total  Xist1000ngmL
+
+Success!
+
+Run the DESeqDataSetFromMatrix function, which should output a DESeqDataSet object called dds. First need to load the DESeq2 package that I downloaded:
+
+library("DESeq2")
+
+dds1 <- DESeqDataSetFromMatrix(countData = counts1_matrix, colData = column_data1, design = ~ genotype)
+
+#output:
+Warning message:
+In DESeqDataSet(se, design = design, ignoreRank) :
+  some variables in design formula are characters, converting to factors
+
+#I think this is okay (seemed okay last time I did this)
+
+dds1
+
+class: DESeqDataSet 
+dim: 14341 8 
+metadata(1): version
+assays(1): counts
+rownames(14341): Xkr4_chr1_3205901_3671498_(-) Mrpl15_chr1_4773206_4785739_(-)
+  ... Mid1-ps1_chrY_90753057_90763485_(+) Gm47283_chrY_90784738_90816465_(+)
+rowData names(0):
+colnames(8): empty1_RNAseq_B6_total empty2_RNAseq_B6_total ...
+  Xist4_RNAseq_B6_total Xist5_RNAseq_B6_total
+colData names(1): genotype
+
+Next, run the DESeq function on dds with default settings.
+
+The following command from the Bioconductor site seems odd (overwriting the dds1 object with the DESeq output?), but will do it as they say:
+
+dds1 <- DESeq(dds1)
+
+Now output results as res:
+
+res1 <- results(dds1)
+
+res1
+
+log2 fold change (MLE): genotype Xist1000ngmL vs empty 
+Wald test p-value: genotype Xist1000ngmL vs empty 
+DataFrame with 14341 rows and 6 columns
+                                        baseMean log2FoldChange     lfcSE       stat
+                                       <numeric>      <numeric> <numeric>  <numeric>
+Xkr4_chr1_3205901_3671498_(-)            239.229     -0.0436127  0.596607 -0.0731012
+Mrpl15_chr1_4773206_4785739_(-)          289.917     -0.2096838  0.228617 -0.9171855
+Lypla1_chr1_4807788_4848410_(+)          299.223     -0.1507573  0.260842 -0.5779651
+Gm37988_chr1_4807892_4886770_(+)         241.842     -0.2664772  0.187810 -1.4188682
+Tcea1_chr1_4857814_4897909_(+)           177.095     -0.3384880  0.245280 -1.3800056
+...                                          ...            ...       ...        ...
+Gm15246_chrX_169320622_169368190_(+)    76.98208      0.0718546  0.185442   0.387477
+BC022960_chrX_169368189_169370003_(+)    8.41198      0.4909417  0.531730   0.923291
+Mid1_chrX_169685199_170005736_(+)     3242.16605     -3.5679442  1.222669  -2.918160
+Mid1-ps1_chrY_90753057_90763485_(+)     15.74098     -0.5209342  0.406472  -1.281599
+Gm47283_chrY_90784738_90816465_(+)    8565.60877     -0.2285590  0.200641  -1.139141
+                                         pvalue      padj
+                                      <numeric> <numeric>
+Xkr4_chr1_3205901_3671498_(-)          0.941726  0.988790
+Mrpl15_chr1_4773206_4785739_(-)        0.359045  0.846887
+Lypla1_chr1_4807788_4848410_(+)        0.563288  0.921317
+Gm37988_chr1_4807892_4886770_(+)       0.155937  0.698589
+Tcea1_chr1_4857814_4897909_(+)         0.167585  0.715136
+...                                         ...       ...
+Gm15246_chrX_169320622_169368190_(+)   0.698403  0.944525
+BC022960_chrX_169368189_169370003_(+)  0.355856  0.844256
+Mid1_chrX_169685199_170005736_(+)            NA        NA
+Mid1-ps1_chrY_90753057_90763485_(+)    0.199983  0.743710
+Gm47283_chrY_90784738_90816465_(+)     0.254644  0.787807
+
+Summarize results and make MA plot showing significant genes:
+
+summary(res1) #default p-adj is 0.1, use alpha argument to change
+
+out of 14341 with nonzero total read count
+adjusted p-value < 0.1
+LFC > 0 (up)       : 148, 1%
+LFC < 0 (down)     : 368, 2.6%
+outliers [1]       : 3, 0.021%
+low counts [2]     : 1391, 9.7%
+(mean count < 8)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+
+summary(res1, alpha = 0.01)
+
+out of 14341 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 31, 0.22%
+LFC < 0 (down)     : 251, 1.8%
+outliers [1]       : 3, 0.021%
+low counts [2]     : 1391, 9.7%
+(mean count < 8)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+plotMA(res1, ylim=c(-3,3), alpha = 0.01)
+
+Exported MA plot as PDF
+
+Export results of DESeq2 snalysis as csv file:
+
+write.csv(as.data.frame(res1), 
+          file="2023-04-11_RMCE_Xist1000_vs_empty_DESeq2_results.csv")
+
+
+
+
+Repeat for the other comparisons
+
+
+
+
+counts2 <- read.csv("2023-04-11_RMCE_B6_reads_Xist10ngmL_empty_for_DESeq2.csv", row.names = 1)
+
+head(counts2)
+                                 empty1_RNAseq_B6_total empty2_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       313                    255
+Gm19938_chr1_3647309_3658904_(-)                      6                      3
+Mrpl15_chr1_4773206_4785739_(-)                     440                    311
+Lypla1_chr1_4807788_4848410_(+)                     513                    249
+Gm37988_chr1_4807892_4886770_(+)                    369                    247
+Tcea1_chr1_4857814_4897909_(+)                      316                    155
+                                 empty3_RNAseq_B6_total empty4_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       374                     40
+Gm19938_chr1_3647309_3658904_(-)                      8                      0
+Mrpl15_chr1_4773206_4785739_(-)                     251                    257
+Lypla1_chr1_4807788_4848410_(+)                     272                    242
+Gm37988_chr1_4807892_4886770_(+)                    211                    241
+Tcea1_chr1_4857814_4897909_(+)                      171                    159
+                                 Xist3_10ngmL_repA_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                                  158
+Gm19938_chr1_3647309_3658904_(-)                                 2
+Mrpl15_chr1_4773206_4785739_(-)                                195
+Lypla1_chr1_4807788_4848410_(+)                                183
+Gm37988_chr1_4807892_4886770_(+)                               147
+Tcea1_chr1_4857814_4897909_(+)                                 125
+                                 Xist3_10ngmL_repB_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                                  400
+Gm19938_chr1_3647309_3658904_(-)                                 7
+Mrpl15_chr1_4773206_4785739_(-)                                287
+Lypla1_chr1_4807788_4848410_(+)                                263
+Gm37988_chr1_4807892_4886770_(+)                               239
+Tcea1_chr1_4857814_4897909_(+)                                 147
+                                 Xist5_10ngmL_repA_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                                  126
+Gm19938_chr1_3647309_3658904_(-)                                 5
+Mrpl15_chr1_4773206_4785739_(-)                                122
+Lypla1_chr1_4807788_4848410_(+)                                129
+Gm37988_chr1_4807892_4886770_(+)                               130
+Tcea1_chr1_4857814_4897909_(+)                                  75
+                                 Xist5_10ngmL_repB_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                                  338
+Gm19938_chr1_3647309_3658904_(-)                                10
+Mrpl15_chr1_4773206_4785739_(-)                                247
+Lypla1_chr1_4807788_4848410_(+)                                204
+Gm37988_chr1_4807892_4886770_(+)                               224
+Tcea1_chr1_4857814_4897909_(+)                                 165
+
+
+counts2_matrix <- as.matrix(counts2)
+
+Need to generate colData data frame: "a DataFrame or data.frame with at least a single column. Rows of colData correspond to columns of countData." So I need to generate a data frame with 8 rows, each with the names of the counts_matrix columns, and one column, with name I'll give as "genotype", and entries as either "empty" or "Xist10ngmL" so DESeq2 knows how to group the 8 samples.
+
+column_data2 <- data.frame(
+	genotype = c("empty", "empty", "empty", "empty", "Xist10ngmL", "Xist10ngmL", "Xist10ngmL", "Xist10ngmL"),
+	row.names = colnames(counts2_matrix)
+)
+
+column_data2
+
+                                    genotype
+empty1_RNAseq_B6_total                 empty
+empty2_RNAseq_B6_total                 empty
+empty3_RNAseq_B6_total                 empty
+empty4_RNAseq_B6_total                 empty
+Xist3_10ngmL_repA_RNAseq_B6_total Xist10ngmL
+Xist3_10ngmL_repB_RNAseq_B6_total Xist10ngmL
+Xist5_10ngmL_repA_RNAseq_B6_total Xist10ngmL
+Xist5_10ngmL_repB_RNAseq_B6_total Xist10ngmL
+
+Success!
+
+Run the DESeqDataSetFromMatrix function, which should output a DESeqDataSet object called dds. First need to load the DESeq2 package that I downloaded:
+
+
+dds2 <- DESeqDataSetFromMatrix(countData = counts2_matrix, colData = column_data2, design = ~ genotype)
+
+#output:
+Warning message:
+In DESeqDataSet(se, design = design, ignoreRank) :
+  some variables in design formula are characters, converting to factors
+
+#I think this is okay (seemed okay last time I did this)
+
+dds2
+
+class: DESeqDataSet 
+dim: 14110 8 
+metadata(1): version
+assays(1): counts
+rownames(14110): Xkr4_chr1_3205901_3671498_(-) Gm19938_chr1_3647309_3658904_(-)
+  ... Mid1-ps1_chrY_90753057_90763485_(+) Gm47283_chrY_90784738_90816465_(+)
+rowData names(0):
+colnames(8): empty1_RNAseq_B6_total empty2_RNAseq_B6_total ...
+  Xist5_10ngmL_repA_RNAseq_B6_total Xist5_10ngmL_repB_RNAseq_B6_total
+colData names(1): genotype
+
+Next, run the DESeq function on dds with default settings.
+
+The following command from the Bioconductor site seems odd (overwriting the dds1 object with the DESeq output?), but will do it as they say:
+
+dds2 <- DESeq(dds2)
+
+Now output results as res:
+
+res2 <- results(dds2)
+
+res2
+
+log2 fold change (MLE): genotype Xist10ngmL vs empty 
+Wald test p-value: genotype Xist10ngmL vs empty 
+DataFrame with 14110 rows and 6 columns
+                                        baseMean log2FoldChange     lfcSE       stat
+                                       <numeric>      <numeric> <numeric>  <numeric>
+Xkr4_chr1_3205901_3671498_(-)          238.00972       0.232822  0.614018   0.379177
+Gm19938_chr1_3647309_3658904_(-)         5.00902       0.720676  0.731362   0.985390
+Mrpl15_chr1_4773206_4785739_(-)        252.47073      -0.317796  0.181741  -1.748623
+Lypla1_chr1_4807788_4848410_(+)        246.53753      -0.441033  0.231477  -1.905300
+Gm37988_chr1_4807892_4886770_(+)       217.58455      -0.273970  0.166639  -1.644096
+...                                          ...            ...       ...        ...
+Gm15246_chrX_169320622_169368190_(+)    62.51561    -0.21940172  0.207024 -1.0597874
+BC022960_chrX_169368189_169370003_(+)    7.64725     0.49924186  0.493202  1.0122458
+Mid1_chrX_169685199_170005736_(+)     2889.19817    -3.79755370  1.217877 -3.1181747
+Mid1-ps1_chrY_90753057_90763485_(+)     13.91760    -0.55140450  0.435521 -1.2660791
+Gm47283_chrY_90784738_90816465_(+)    8349.62707     0.00662133  0.158010  0.0419044
+                                         pvalue      padj
+                                      <numeric> <numeric>
+Xkr4_chr1_3205901_3671498_(-)         0.7045562  0.954825
+Gm19938_chr1_3647309_3658904_(-)      0.3244325  0.830538
+Mrpl15_chr1_4773206_4785739_(-)       0.0803562  0.537792
+Lypla1_chr1_4807788_4848410_(+)       0.0567411  0.462184
+Gm37988_chr1_4807892_4886770_(+)      0.1001563  0.581740
+...                                         ...       ...
+Gm15246_chrX_169320622_169368190_(+)   0.289241  0.807999
+BC022960_chrX_169368189_169370003_(+)  0.311421  0.819923
+Mid1_chrX_169685199_170005736_(+)            NA        NA
+Mid1-ps1_chrY_90753057_90763485_(+)    0.205485  0.742992
+Gm47283_chrY_90784738_90816465_(+)     0.966575  0.995130
+
+Summarize results and make MA plot showing significant genes:
+
+summary(res2, alpha = 0.01)
+
+out of 14110 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 60, 0.43%
+LFC < 0 (down)     : 136, 0.96%
+outliers [1]       : 2, 0.014%
+low counts [2]     : 0, 0%
+(mean count < 4)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+plotMA(res2, ylim=c(-3,3), alpha = 0.01)
+
+Exported MA plot as PDF
+
+Export results of DESeq2 snalysis as csv file:
+
+write.csv(as.data.frame(res2), 
+          file="2023-04-11_RMCE_Xist10_vs_empty_DESeq2_results.csv")
+
+
+
+
+
+counts3 <- read.csv("2023-04-11_RMCE_B6_reads_Airn3d_empty_for_DESeq2.csv", row.names = 1)
+
+head(counts3)
+                                 empty1_RNAseq_B6_total empty2_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       313                    255
+Mrpl15_chr1_4773206_4785739_(-)                     440                    311
+Lypla1_chr1_4807788_4848410_(+)                     513                    249
+Gm37988_chr1_4807892_4886770_(+)                    369                    247
+Tcea1_chr1_4857814_4897909_(+)                      316                    155
+Rgs20_chr1_4909576_5070285_(-)                       29                     16
+                                 empty3_RNAseq_B6_total empty4_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       374                     40
+Mrpl15_chr1_4773206_4785739_(-)                     251                    257
+Lypla1_chr1_4807788_4848410_(+)                     272                    242
+Gm37988_chr1_4807892_4886770_(+)                    211                    241
+Tcea1_chr1_4857814_4897909_(+)                      171                    159
+Rgs20_chr1_4909576_5070285_(-)                       16                     32
+                                 Airn2_repA_RNAseq_B6_total Airn2_repB_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                           298                        268
+Mrpl15_chr1_4773206_4785739_(-)                         298                        238
+Lypla1_chr1_4807788_4848410_(+)                         241                        190
+Gm37988_chr1_4807892_4886770_(+)                        242                        196
+Tcea1_chr1_4857814_4897909_(+)                          165                        153
+Rgs20_chr1_4909576_5070285_(-)                           11                         16
+                                 Airn5_repA_RNAseq_B6_total Airn5_repB_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                           107                        116
+Mrpl15_chr1_4773206_4785739_(-)                         288                        203
+Lypla1_chr1_4807788_4848410_(+)                         348                        218
+Gm37988_chr1_4807892_4886770_(+)                        280                        192
+Tcea1_chr1_4857814_4897909_(+)                          189                        143
+Rgs20_chr1_4909576_5070285_(-)                           15                         11
+
+
+counts3_matrix <- as.matrix(counts3)
+
+Need to generate colData data frame: "a DataFrame or data.frame with at least a single column. Rows of colData correspond to columns of countData." So I need to generate a data frame with 8 rows, each with the names of the counts_matrix columns, and one column, with name I'll give as "genotype", and entries as either "empty" or "Airn3d" so DESeq2 knows how to group the 8 samples.
+
+column_data3 <- data.frame(
+	genotype = c("empty", "empty", "empty", "empty", "Airn3d", "Airn3d", "Airn3d", "Airn3d"),
+	row.names = colnames(counts3_matrix)
+)
+
+column_data3
+
+                           genotype
+empty1_RNAseq_B6_total        empty
+empty2_RNAseq_B6_total        empty
+empty3_RNAseq_B6_total        empty
+empty4_RNAseq_B6_total        empty
+Airn2_repA_RNAseq_B6_total   Airn3d
+Airn2_repB_RNAseq_B6_total   Airn3d
+Airn5_repA_RNAseq_B6_total   Airn3d
+Airn5_repB_RNAseq_B6_total   Airn3d
+
+Success!
+
+Run the DESeqDataSetFromMatrix function, which should output a DESeqDataSet object called dds. First need to load the DESeq2 package that I downloaded:
+
+
+dds3 <- DESeqDataSetFromMatrix(countData = counts3_matrix, colData = column_data3, design = ~ genotype)
+
+#output:
+Warning message:
+In DESeqDataSet(se, design = design, ignoreRank) :
+  some variables in design formula are characters, converting to factors
+
+#I think this is okay (seemed okay last time I did this)
+
+dds3
+
+class: DESeqDataSet 
+dim: 14414 8 
+metadata(1): version
+assays(1): counts
+rownames(14414): Xkr4_chr1_3205901_3671498_(-) Mrpl15_chr1_4773206_4785739_(-) ...
+  Mid1-ps1_chrY_90753057_90763485_(+) Gm47283_chrY_90784738_90816465_(+)
+rowData names(0):
+colnames(8): empty1_RNAseq_B6_total empty2_RNAseq_B6_total ...
+  Airn5_repA_RNAseq_B6_total Airn5_repB_RNAseq_B6_total
+colData names(1): genotype
+
+Next, run the DESeq function on dds with default settings.
+
+The following command from the Bioconductor site seems odd (overwriting the dds1 object with the DESeq output?), but will do it as they say:
+
+dds3 <- DESeq(dds3)
+
+Now output results as res:
+
+res3 <- results(dds3)
+
+res3
+
+log2 fold change (MLE): genotype empty vs Airn3d 
+Wald test p-value: genotype empty vs Airn3d 
+DataFrame with 14414 rows and 6 columns
+                                        baseMean log2FoldChange     lfcSE      stat    pvalue
+                                       <numeric>      <numeric> <numeric> <numeric> <numeric>
+Xkr4_chr1_3205901_3671498_(-)            221.471       0.403587  0.695042  0.580666 0.5614659
+Mrpl15_chr1_4773206_4785739_(-)          283.490       0.406088  0.169592  2.394509 0.0166426
+Lypla1_chr1_4807788_4848410_(+)          281.155       0.475589  0.231663  2.052932 0.0400792
+Gm37988_chr1_4807892_4886770_(+)         245.139       0.346509  0.164723  2.103579 0.0354152
+Tcea1_chr1_4857814_4897909_(+)           180.505       0.404030  0.219903  1.837313 0.0661637
+...                                          ...            ...       ...       ...       ...
+Gm15246_chrX_169320622_169368190_(+)    83.35794      -0.187436  0.196981 -0.951542 0.3413293
+BC022960_chrX_169368189_169370003_(+)    7.59351      -0.151285  0.655576 -0.230766 0.8174967
+Mid1_chrX_169685199_170005736_(+)     3292.36941       4.087857  1.230503  3.322102        NA
+Mid1-ps1_chrY_90753057_90763485_(+)     16.98602       0.408649  0.500697  0.816161 0.4144082
+Gm47283_chrY_90784738_90816465_(+)    8805.49819       0.261681  0.143511  1.823414 0.0682407
+                                           padj
+                                      <numeric>
+Xkr4_chr1_3205901_3671498_(-)           0.99968
+Mrpl15_chr1_4773206_4785739_(-)         0.99968
+Lypla1_chr1_4807788_4848410_(+)         0.99968
+Gm37988_chr1_4807892_4886770_(+)        0.99968
+Tcea1_chr1_4857814_4897909_(+)          0.99968
+...                                         ...
+Gm15246_chrX_169320622_169368190_(+)    0.99968
+BC022960_chrX_169368189_169370003_(+)   0.99968
+Mid1_chrX_169685199_170005736_(+)            NA
+Mid1-ps1_chrY_90753057_90763485_(+)     0.99968
+Gm47283_chrY_90784738_90816465_(+)      0.99968
+
+Here it seems log fold change is empty/Airn, not Airn/empty as I'd want. Trying the following function from https://bioc.ism.ac.jp/packages/2.14/bioc/vignettes/DESeq2/inst/doc/beginner.pdf
+
+dds3$genotype <- relevel( dds3$genotype, "empty")
+
+repeat steps above:
+
+dds3 <- DESeq(dds3)
+res3 <- results(dds3)
+res3
+
+Summarize results and make MA plot showing significant genes:
+
+summary(res3, alpha = 0.01)
+
+out of 14414 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 2, 0.014%
+LFC < 0 (down)     : 1, 0.0069%
+outliers [1]       : 2, 0.014%
+low counts [2]     : 0, 0%
+(mean count < 5)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+plotMA(res2, ylim=c(-3,3), alpha = 0.01)
+
+Exported MA plot as PDF
+
+Export results of DESeq2 snalysis as csv file:
+
+write.csv(as.data.frame(res3), 
+          file="2023-04-11_RMCE_Airn3d_vs_empty_DESeq2_results.csv")
+
+
+
+
+
+
+
+counts4 <- read.csv("2023-04-11_RMCE_B6_reads_Airn7d_empty_for_DESeq2.csv", row.names = 1)
+
+head(counts4)
+                                 empty1_RNAseq_B6_total empty2_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       313                    255
+Mrpl15_chr1_4773206_4785739_(-)                     440                    311
+Lypla1_chr1_4807788_4848410_(+)                     513                    249
+Gm37988_chr1_4807892_4886770_(+)                    369                    247
+Tcea1_chr1_4857814_4897909_(+)                      316                    155
+Rgs20_chr1_4909576_5070285_(-)                       29                     16
+                                 empty3_RNAseq_B6_total empty4_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                       374                     40
+Mrpl15_chr1_4773206_4785739_(-)                     251                    257
+Lypla1_chr1_4807788_4848410_(+)                     272                    242
+Gm37988_chr1_4807892_4886770_(+)                    211                    241
+Tcea1_chr1_4857814_4897909_(+)                      171                    159
+Rgs20_chr1_4909576_5070285_(-)                       16                     32
+                                 Airn2_7d_repA_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                              276
+Mrpl15_chr1_4773206_4785739_(-)                            246
+Lypla1_chr1_4807788_4848410_(+)                            199
+Gm37988_chr1_4807892_4886770_(+)                           212
+Tcea1_chr1_4857814_4897909_(+)                             142
+Rgs20_chr1_4909576_5070285_(-)                              22
+                                 Airn2_7d_repB_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                              272
+Mrpl15_chr1_4773206_4785739_(-)                            261
+Lypla1_chr1_4807788_4848410_(+)                            231
+Gm37988_chr1_4807892_4886770_(+)                           194
+Tcea1_chr1_4857814_4897909_(+)                             155
+Rgs20_chr1_4909576_5070285_(-)                              18
+                                 Airn5_7d_repA_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                               80
+Mrpl15_chr1_4773206_4785739_(-)                            271
+Lypla1_chr1_4807788_4848410_(+)                            205
+Gm37988_chr1_4807892_4886770_(+)                           223
+Tcea1_chr1_4857814_4897909_(+)                             157
+Rgs20_chr1_4909576_5070285_(-)                              21
+                                 Airn5_7d_repB_RNAseq_B6_total
+Xkr4_chr1_3205901_3671498_(-)                              102
+Mrpl15_chr1_4773206_4785739_(-)                            250
+Lypla1_chr1_4807788_4848410_(+)                            259
+Gm37988_chr1_4807892_4886770_(+)                           215
+Tcea1_chr1_4857814_4897909_(+)                             151
+Rgs20_chr1_4909576_5070285_(-)                              19
+
+
+counts4_matrix <- as.matrix(counts4)
+
+Need to generate colData data frame: "a DataFrame or data.frame with at least a single column. Rows of colData correspond to columns of countData." So I need to generate a data frame with 8 rows, each with the names of the counts_matrix columns, and one column, with name I'll give as "genotype", and entries as either "empty" or "Airn7d" so DESeq2 knows how to group the 8 samples.
+
+column_data4 <- data.frame(
+	genotype = c("empty", "empty", "empty", "empty", "Airn7d", "Airn7d", "Airn7d", "Airn7d"),
+	row.names = colnames(counts4_matrix)
+)
+
+column_data4
+
+                              genotype
+empty1_RNAseq_B6_total           empty
+empty2_RNAseq_B6_total           empty
+empty3_RNAseq_B6_total           empty
+empty4_RNAseq_B6_total           empty
+Airn2_7d_repA_RNAseq_B6_total   Airn7d
+Airn2_7d_repB_RNAseq_B6_total   Airn7d
+Airn5_7d_repA_RNAseq_B6_total   Airn7d
+Airn5_7d_repB_RNAseq_B6_total   Airn7d
+
+Success!
+
+Run the DESeqDataSetFromMatrix function, which should output a DESeqDataSet object called dds. First need to load the DESeq2 package that I downloaded:
+
+
+dds4 <- DESeqDataSetFromMatrix(countData = counts4_matrix, colData = column_data4, design = ~ genotype)
+
+#output:
+Warning message:
+In DESeqDataSet(se, design = design, ignoreRank) :
+  some variables in design formula are characters, converting to factors
+
+#I think this is okay (seemed okay last time I did this)
+
+dds4
+
+class: DESeqDataSet 
+dim: 14440 8 
+metadata(1): version
+assays(1): counts
+rownames(14440): Xkr4_chr1_3205901_3671498_(-) Mrpl15_chr1_4773206_4785739_(-)
+  ... Mid1-ps1_chrY_90753057_90763485_(+) Gm47283_chrY_90784738_90816465_(+)
+rowData names(0):
+colnames(8): empty1_RNAseq_B6_total empty2_RNAseq_B6_total ...
+  Airn5_7d_repA_RNAseq_B6_total Airn5_7d_repB_RNAseq_B6_total
+colData names(1): genotype
+
+Next, run the DESeq function on dds with default settings.
+
+The following command from the Bioconductor site seems odd (overwriting the dds1 object with the DESeq output?), but will do it as they say:
+
+dds4 <- DESeq(dds4)
+
+Now output results as res:
+
+res4 <- results(dds4)
+
+res4
+
+log2 fold change (MLE): genotype empty vs Airn7d 
+Wald test p-value: genotype empty vs Airn7d 
+DataFrame with 14440 rows and 6 columns
+                                        baseMean log2FoldChange     lfcSE       stat
+                                       <numeric>      <numeric> <numeric>  <numeric>
+Xkr4_chr1_3205901_3671498_(-)            212.986       0.537278  0.718479    0.74780
+Mrpl15_chr1_4773206_4785739_(-)          284.830       0.390013  0.171266    2.27724
+Lypla1_chr1_4807788_4848410_(+)          270.642       0.610582  0.232928    2.62134
+Gm37988_chr1_4807892_4886770_(+)         238.457       0.438496  0.169976    2.57976
+Tcea1_chr1_4857814_4897909_(+)           175.286       0.502140  0.223810    2.24359
+...                                          ...            ...       ...        ...
+Gm15246_chrX_169320622_169368190_(+)    78.85783    -0.03299992  0.193330 -0.1706922
+BC022960_chrX_169368189_169370003_(+)    7.23448     0.00561066  0.525524  0.0106763
+Mid1_chrX_169685199_170005736_(+)     3300.15350     4.02014220  1.237734  3.2479853
+Mid1-ps1_chrY_90753057_90763485_(+)     16.43448     0.50090057  0.448577  1.1166424
+Gm47283_chrY_90784738_90816465_(+)    8779.32226     0.27069140  0.132045  2.0499917
+                                          pvalue      padj
+                                       <numeric> <numeric>
+Xkr4_chr1_3205901_3671498_(-)         0.45458059  0.861229
+Mrpl15_chr1_4773206_4785739_(-)       0.02277217  0.312883
+Lypla1_chr1_4807788_4848410_(+)       0.00875854  0.197586
+Gm37988_chr1_4807892_4886770_(+)      0.00988704  0.212967
+Tcea1_chr1_4857814_4897909_(+)        0.02485854  0.324814
+...                                          ...       ...
+Gm15246_chrX_169320622_169368190_(+)   0.8644658  0.976210
+BC022960_chrX_169368189_169370003_(+)  0.9914817        NA
+Mid1_chrX_169685199_170005736_(+)             NA        NA
+Mid1-ps1_chrY_90753057_90763485_(+)    0.2641472  0.745986
+Gm47283_chrY_90784738_90816465_(+)     0.0403652  0.395978
+
+
+Here it seems log fold change is empty/Airn, not Airn/empty as I'd want. Trying the following function from https://bioc.ism.ac.jp/packages/2.14/bioc/vignettes/DESeq2/inst/doc/beginner.pdf
+
+dds4$genotype <- relevel( dds4$genotype, "empty")
+
+repeat steps above:
+
+dds4 <- DESeq(dds4)
+res4 <- results(dds4)
+res4
+
+Summarize results and make MA plot showing significant genes:
+
+summary(res4, alpha = 0.01)
+
+out of 14440 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 63, 0.44%
+LFC < 0 (down)     : 24, 0.17%
+outliers [1]       : 1, 0.0069%
+low counts [2]     : 1400, 9.7%
+(mean count < 8)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+plotMA(res4, ylim=c(-3,3), alpha = 0.01)
+
+Making this look nicer (needed to change plotting space with par):
+
+par(mar = c(5.1, 5.0, 4.1, 1.2))
+plotMA(res4, ylim=c(-2.2,2.2), alpha = 0.01, cex = 0.75, colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste(italic("Airn"), " 7d vs. empty")), ylab = "log2 fold change", cex.lab = 2, cex.axis = 2, cex.main = 2)
+
+Exported MA plot as PDF (repeated for other MAplots as well)
+
+plotMA(res1, ylim=c(-2.2,2.2), alpha = 0.01, cex = 0.75, colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste("1000 ng/mL ", italic("Xist"), " vs. empty")), ylab = "log2 fold change", cex.lab = 2, cex.axis = 2, cex.main = 2)
+
+plotMA(res2, ylim=c(-2.2,2.2), alpha = 0.01, cex = 0.75, colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste("10 ng/mL ", italic("Xist"), " vs. empty")), ylab = "log2 fold change", cex.lab = 2, cex.axis = 2, cex.main = 2)
+
+plotMA(res3, ylim=c(-2.2,2.2), alpha = 0.01, cex = 0.75, colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste(italic("Airn"), " 3d vs. empty")), ylab = "log2 fold change", cex.lab = 2, cex.axis = 2, cex.main = 2)
+
+Export results of DESeq2 snalysis as csv file:
+
+write.csv(as.data.frame(res4), 
+          file="2023-04-11_RMCE_Airn7d_vs_empty_DESeq2_results.csv")
+
+
+
+
+--------------
+I want to plot chr6 genes specifically (and count number significantly up and down). First subset out the res objects. Use colors for significantly changed genes that match Aki's ChIP-seq plots.
+
+
+res1_chr6 <- res1[grep("_chr6_", rownames(res1)), ]
+res1_chr6
+
+summary(res1_chr6, alpha = 0.01)
+
+out of 671 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 0, 0%
+LFC < 0 (down)     : 242, 36%
+outliers [1]       : 0, 0%
+low counts [2]     : 73, 11%
+(mean count < 8)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+par(mar = c(6.1, 7.0, 6.1, 3.2))
+plotMA(res1_chr6, ylim=c(-2.2,2.2), alpha = 0.01, cex = 1.5, colSig = rgb(129, 103, 255, max = 255, alpha = 150), colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste("1000ng/mL ", italic("Xist"), " vs. Empty")), ylab = "log2 fold change", cex.lab = 2.5, cex.axis = 2.5, cex.main = 2.5, xaxt = "n", yaxt = "n")
+axis(1, at = c(10, 100, 1000), labels = c(10, 100, 1000), cex.axis = 2.5, mgp=c(3,1.3,0))
+axis(2, at = c(-2, -1, 0, 1, 2), labels = c(-2, " ", 0, " ", 2), cex.axis = 2.5, mgp=c(3,0.6,0))
+
+
+
+
+res2_chr6 <- res2[grep("_chr6_", rownames(res2)), ]
+res2_chr6
+
+summary(res2_chr6, alpha = 0.01)
+
+out of 694 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 0, 0%
+LFC < 0 (down)     : 16, 2.3%
+outliers [1]       : 0, 0%
+low counts [2]     : 0, 0%
+(mean count < 4)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+par(mar = c(6.1, 7.0, 6.1, 3.2))
+plotMA(res2_chr6, ylim=c(-2.2,2.2), alpha = 0.01, cex = 1.5, colSig = rgb(255, 127, 80, max = 255, alpha = 150), colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste("10ng/mL ", italic("Xist"), " vs. Empty")), ylab = "log2 fold change", cex.lab = 2.5, cex.axis = 2.5, cex.main = 2.5, xaxt = "n", yaxt = "n")
+axis(1, at = c(10, 100, 1000), labels = c(10, 100, 1000), cex.axis = 2.5, mgp=c(3,1.3,0))
+axis(2, at = c(-2, -1, 0, 1, 2), labels = c(-2, " ", 0, " ", 2), cex.axis = 2.5, mgp=c(3,0.6,0))
+
+
+
+
+res3_chr6 <- res3[grep("_chr6_", rownames(res3)), ]
+res3_chr6
+
+summary(res3_chr6, alpha = 0.01)
+
+out of 710 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 0, 0%
+LFC < 0 (down)     : 0, 0%
+outliers [1]       : 0, 0%
+low counts [2]     : 0, 0%
+(mean count < 5)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+par(mar = c(6.1, 7.0, 6.1, 3.2))
+plotMA(res3_chr6, ylim=c(-2.2,2.2), alpha = 0.01, cex = 1.5, colSig = rgb(252, 115, 148, max = 255, alpha = 150), colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste("1000ng/mL ", italic("Airn"), " vs. Empty")), ylab = "log2 fold change", cex.lab = 2.5, cex.axis = 2.5, cex.main = 2.5, xaxt = "n", yaxt = "n")
+axis(1, at = c(10, 100, 1000), labels = c(10, 100, 1000), cex.axis = 2.5, mgp=c(3,1.3,0))
+axis(2, at = c(-2, -1, 0, 1, 2), labels = c(-2, " ", 0, " ", 2), cex.axis = 2.5, mgp=c(3,0.6,0))
+
+
+
+
+res4_chr6 <- res4[grep("_chr6_", rownames(res4)), ]
+res4_chr6
+
+summary(res4_chr6, alpha = 0.01)
+
+out of 713 with nonzero total read count
+adjusted p-value < 0.01
+LFC > 0 (up)       : 2, 0.28%
+LFC < 0 (down)     : 2, 0.28%
+outliers [1]       : 0, 0%
+low counts [2]     : 73, 10%
+(mean count < 8)
+[1] see 'cooksCutoff' argument of ?results
+[2] see 'independentFiltering' argument of ?results
+
+par(mar = c(6.1, 5.5, 6.1, 4.7))
+plotMA(res4_chr6, ylim=c(-2.2,2.2), alpha = 0.01, cex = 1.5, colSig = rgb(252, 115, 148, max = 255, alpha = 150), colNonSig = rgb(130, 130, 130, max = 255, alpha = 100), main = substitute(paste("7d 1000ng/mL ", italic("Airn"), " vs. Empty")), ylab = "log2 fold change", cex.lab = 2.5, cex.axis = 2.5, cex.main = 2.5, xaxt = "n", yaxt = "n")
+axis(1, at = c(10, 100, 1000), labels = c(10, 100, 1000), cex.axis = 2.5, mgp=c(3,1.3,0))
+axis(2, at = c(-2, -1, 0, 1, 2), labels = c(-2, " ", 0, " ", 2), cex.axis = 2.5, mgp=c(3,0.6,0))

@@ -1,0 +1,1428 @@
+Follow 2023-02-06_RMCE-Airn_RNA-seq_data_processing_notes.txt for reference
+
+With new (and old) RNA-seq data, want to use allelic (B6) reads to make the following comparisons of RMCE cells/conditions (# of samples) via DESeq2 to determine how Xist/Airn impact chr6 gene expression. Will align using STAR 2-pass mapping - second pass will include splice junctions defined from first pass of all samples. All samples are 3 days of 1000 ng/mL dox unless otherwise stated:
+
+RMCE-empty (4 clones, 1 sample each) vs. RMCE-Xist (4 clones, 1 sample each)
+RMCE-empty (4 clones, 1 sample each) vs. RMCE-Xist 10 ng/mL (2 clones, 2 samples each)
+RMCE-empty (4 clones, 1 sample each) vs. RMCE-Airn (2 clones, 2 samples each)
+RMCE-empty (4 clones, 1 sample each) vs. RMCE-Airn 7 d (2 clones, 2 samples each)
+
+Copy fastq files over to working directory (/work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq):
+
+cp /pine/scr/n/o/noahs/869/JBT* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/
+cp /proj/calabrlb/users/Jackson/20230206_RMCE-Airn_RNA-seq/848/*1000dox* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/
+cp /proj/calabrlb/users/Jackson/20220113_RMCE_RNAseq/727/*WT* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/
+cp /proj/calabrlb/users/Jackson/20220113_RMCE_RNAseq/727/*empty* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/
+cp /proj/calabrlb/users/Jackson/20220113_RMCE_RNAseq/728/*WT* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/
+cp /proj/calabrlb/users/Jackson/20220113_RMCE_RNAseq/728/*empty_3* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/
+cp /proj/calabrlb/users/Jackson/20220113_RMCE_RNAseq/728/*intron_4* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/ #intron_4 is actually empty_4
+cp /proj/calabrlb/users/Jackson/20220420_RMCE_dox_titration_RNAseq/fastq/*_10_* /work/users/j/b/jbt/20230411_RMCE_Airn_Xist_RNA-seq/fastq/
+
+gunzip fastq/*
+
+ls -lh fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.8G Apr 11 14:01 airn-rmce_clone2_1000dox_rna-seq_S6_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 6.2G Apr 11 14:01 airn-rmce_clone5_1000dox_rna-seq_S9_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 14:05 JBT20220111_empty_1_S2_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 14:05 JBT20220111_empty_2_S18_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 14:04 JBT20220111_WT_1_S1_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 14:04 JBT20220111_WT_3_S17_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.2G Apr 11 14:05 JBT20220112_empty_3_S2_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.0G Apr 11 14:06 JBT20220112_intron_4_S16_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.0G Apr 11 14:05 JBT20220112_WT_4_S1_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.2G Apr 11 14:05 JBT20220112_WT_5_S17_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 4.8G Apr 11 13:02 JBT_RMCE-Airn_2_3d_1000dox_repB_RNA_S10_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 JBT_RMCE-Airn_2_7d_1000dox_repA_RNA_S12_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 JBT_RMCE-Airn_2_7d_1000dox_repB_RNA_S13_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 4.6G Apr 11 13:02 JBT_RMCE-Airn_5_3d_1000dox_repB_RNA_S11_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 13:02 JBT_RMCE-Airn_5_7d_1000dox_repA_RNA_S14_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.5G Apr 11 13:02 JBT_RMCE-Airn_5_7d_1000dox_repB_RNA_S15_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 JBT_RMCE-Xist_WT_3_3d_10dox_repB_RNA_S16_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 JBT_RMCE-Xist_WT_5_3d_10dox_repB_RNA_S17_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 3.4G Apr 11 14:08 WT3_10_dox_S8_R1_001.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 3.0G Apr 11 14:08 WT5_10_dox_S11_R1_001.fastq
+
+
+To make data processing easier (and possibly to make archiving data better - e.g. on GEO), renaming files with a consistent nomenclature:
+
+cd fastq
+mv airn-rmce_clone2_1000dox_rna-seq_S6_R1_001.fastq Airn2_repA_RNAseq.fastq
+mv airn-rmce_clone5_1000dox_rna-seq_S9_R1_001.fastq Airn5_repA_RNAseq.fastq
+mv JBT20220111_empty_1_S2_R1_001.fastq empty1_RNAseq.fastq
+mv JBT20220111_empty_2_S18_R1_001.fastq empty2_RNAseq.fastq
+mv JBT20220111_WT_1_S1_R1_001.fastq Xist1_RNAseq.fastq
+mv JBT20220111_WT_3_S17_R1_001.fastq Xist3_RNAseq.fastq
+mv JBT20220112_empty_3_S2_R1_001.fastq empty3_RNAseq.fastq
+mv JBT20220112_intron_4_S16_R1_001.fastq empty4_RNAseq.fastq
+mv JBT20220112_WT_4_S1_R1_001.fastq Xist4_RNAseq.fastq
+mv JBT20220112_WT_5_S17_R1_001.fastq Xist5_RNAseq.fastq
+mv JBT_RMCE-Airn_2_3d_1000dox_repB_RNA_S10_R1_001.fastq Airn2_repB_RNAseq.fastq
+mv JBT_RMCE-Airn_2_7d_1000dox_repA_RNA_S12_R1_001.fastq Airn2_7d_repA_RNAseq.fastq
+mv JBT_RMCE-Airn_2_7d_1000dox_repB_RNA_S13_R1_001.fastq Airn2_7d_repB_RNAseq.fastq
+mv JBT_RMCE-Airn_5_3d_1000dox_repB_RNA_S11_R1_001.fastq Airn5_repB_RNAseq.fastq
+mv JBT_RMCE-Airn_5_7d_1000dox_repA_RNA_S14_R1_001.fastq Airn5_7d_repA_RNAseq.fastq
+mv JBT_RMCE-Airn_5_7d_1000dox_repB_RNA_S15_R1_001.fastq Airn5_7d_repB_RNAseq.fastq
+mv JBT_RMCE-Xist_WT_3_3d_10dox_repB_RNA_S16_R1_001.fastq Xist3_10ngmL_repB_RNAseq.fastq
+mv JBT_RMCE-Xist_WT_5_3d_10dox_repB_RNA_S17_R1_001.fastq Xist5_10ngmL_repB_RNAseq.fastq
+mv WT3_10_dox_S8_R1_001.fastq Xist3_10ngmL_repA_RNAseq.fastq
+mv WT5_10_dox_S11_R1_001.fastq Xist5_10ngmL_repA_RNAseq.fastq
+
+ls -lh
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 Airn2_7d_repA_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 Airn2_7d_repB_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.8G Apr 11 14:01 Airn2_repA_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 4.8G Apr 11 13:02 Airn2_repB_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 13:02 Airn5_7d_repA_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.5G Apr 11 13:02 Airn5_7d_repB_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 6.2G Apr 11 14:01 Airn5_repA_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 4.6G Apr 11 13:02 Airn5_repB_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 14:05 empty1_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 14:05 empty2_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.2G Apr 11 14:05 empty3_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.0G Apr 11 14:06 empty4_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.4G Apr 11 14:04 Xist1_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 3.4G Apr 11 14:08 Xist3_10ngmL_repA_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 Xist3_10ngmL_repB_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 14:04 Xist3_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.0G Apr 11 14:05 Xist4_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 3.0G Apr 11 14:08 Xist5_10ngmL_repA_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.3G Apr 11 13:02 Xist5_10ngmL_repB_RNAseq.fastq
+-rw-r--r-- 1 jbt its_undrgrad_psx 5.2G Apr 11 14:05 Xist5_RNAseq.fastq
+
+cd ../
+
+Copy these fastq files to /proj/ space
+mkdir /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq
+
+sbatch -p general -t 08:00:00 -N 1 -n 12 --mem=32g --mail-type ALL --mail-user jbt@unc.edu -J gzip --wrap="cp -R fastq /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq;
+gzip /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq/fastq/*"
+
+-------------
+STAR 1st pass alignments of all fastq files to mm10 and CASTmm10:
+
+Copy previously-generated B6(mm10) and CASTmm10 STAR genome indices to working directory:
+
+cp -R /proj/calabrlb/users/Jackson/STARv2.7.9a_genome_index_mm10 .
+cp -R /proj/calabrlb/users/Jackson/STARv2.7.9a_genome_index_CASTmm10 .
+
+Create script for running multiple STAR alignment jobs (one for each fastq file in /fastq), aligning to mm10:
+
+touch star_map_1st_pass.sh
+nedit star_map_1st_pass.sh
+#edit script to the following:
+############
+module load star/2.7.9a
+
+for S in fastq/*.fastq; do
+
+	prefix_stripped=${S##fastq/} #create variable prefix_stripped where prefix fastq/ is removed
+	sample_name=${prefix_stripped%.fastq}
+
+	sbatch -p general -t 02:00:00 -N 1 -n 12 --mem=32g --mail-type ALL --mail-user jbt@unc.edu -J star_map_${sample_name} -o slurm_out_err/star_map_${sample_name}.out -e slurm_out_err/star_map_${sample_name}.err --wrap="STAR --genomeDir STARv2.7.9a_genome_index_mm10 --runThreadN 12 --readFilesIn fastq/${sample_name}.fastq --outFilterMultimapNmax 1 --outFileNamePrefix STAR_output_1st_pass/${sample_name}.1st_pass --outSAMtype SAM --outReadsUnmapped Fastx"
+
+done
+############
+
+mkdir slurm_out_err
+mkdir STAR_output_1st_pass
+sh star_map_1st_pass.sh
+
+Create script for running multiple STAR alignment jobs (one for each fastq file in /fastq), aligning to CASTmm10:
+
+touch star_map_CAST_1st_pass.sh
+nedit star_map_CAST_1st_pass.sh
+#edit script to the following:
+############
+module load star/2.7.9a
+
+for S in fastq/*.fastq; do
+
+	prefix_stripped=${S##fastq/} #create variable prefix_stripped where prefix fastq/ is removed
+	sample_name=${prefix_stripped%.fastq}
+
+	sbatch -p general -t 02:00:00 -N 1 -n 12 --mem=32g --mail-type ALL --mail-user jbt@unc.edu -J star_map_${sample_name}_CAST -o slurm_out_err/star_map_${sample_name}_CAST.out -e slurm_out_err/star_map_${sample_name}_CAST.err --wrap="STAR --genomeDir STARv2.7.9a_genome_index_CASTmm10 --runThreadN 12 --readFilesIn fastq/${sample_name}.fastq --outFilterMultimapNmax 1 --outFileNamePrefix STAR_output_CAST_1st_pass/${sample_name}_CAST.1st_pass --outSAMtype SAM --outReadsUnmapped Fastx"
+
+done
+############
+
+mkdir STAR_output_CAST_1st_pass
+sh star_map_CAST_1st_pass.sh
+
+-------------
+STAR 2nd pass alignment of all fastq files to mm10 and CASTmm10, including splice junction output file from each set of 1st-pass alignments (for the 6 fastq files being processed today, within B6 or CAST).
+
+Make new directories for 2nd-pass outputs:
+mkdir STAR_output_2nd_pass
+mkdir STAR_output_CAST_2nd_pass
+
+Create script for running multiple STAR 2nd-pass alignment jobs (one for each fastq file in /fastq), aligning to mm10. Same options as above, but adding the option "--sjdbFileChrStartEnd STAR_output_1st_pass/*SJ.out.tab" to include all splice junctions found during first alignments:
+
+touch star_map_2nd_pass.sh
+nedit star_map_2nd_pass.sh
+#edit script to the following:
+############
+module load star/2.7.9a
+
+for S in fastq/*.fastq; do
+
+	prefix_stripped=${S##fastq/} #create variable prefix_stripped where prefix fastq/ is removed
+	sample_name=${prefix_stripped%.fastq}
+
+	sbatch -p general -t 02:00:00 -N 1 -n 12 --mem=32g --mail-type ALL --mail-user jbt@unc.edu -J star_map2_${sample_name} -o slurm_out_err/star_map2_${sample_name}.out -e slurm_out_err/star_map2_${sample_name}.err --wrap="STAR --genomeDir STARv2.7.9a_genome_index_mm10 --runThreadN 12 --readFilesIn fastq/${sample_name}.fastq --outFilterMultimapNmax 1 --outFileNamePrefix STAR_output_2nd_pass/${sample_name}.2nd_pass --outSAMtype SAM --outReadsUnmapped Fastx --sjdbFileChrStartEnd STAR_output_1st_pass/*SJ.out.tab"
+
+done
+############
+
+sh star_map_2nd_pass.sh
+
+As above, create script for running multiple STAR 2nd-pass alignment jobs (one for each fastq file in /fastq), this time aligning to CAST mm10 and using CAST 1st pass splice junction outputs:
+
+touch star_map_CAST_2nd_pass.sh
+nedit star_map_CAST_2nd_pass.sh
+#edit script to the following:
+############
+module load star/2.7.9a
+
+for S in fastq/*.fastq; do
+
+	prefix_stripped=${S##fastq/} #create variable prefix_stripped where prefix fastq/ is removed
+	sample_name=${prefix_stripped%.fastq}
+
+	sbatch -p general -t 02:00:00 -N 1 -n 12 --mem=32g --mail-type ALL --mail-user jbt@unc.edu -J star_map2CAST_${sample_name} -o slurm_out_err/star_map2CAST_${sample_name}.out -e slurm_out_err/star_map2CAST_${sample_name}.err --wrap="STAR --genomeDir STARv2.7.9a_genome_index_CASTmm10 --runThreadN 12 --readFilesIn fastq/${sample_name}.fastq --outFilterMultimapNmax 1 --outFileNamePrefix STAR_output_CAST_2nd_pass/${sample_name}_CAST.2nd_pass --outSAMtype SAM --outReadsUnmapped Fastx --sjdbFileChrStartEnd STAR_output_CAST_1st_pass/*SJ.out.tab"
+
+done
+############
+
+sh star_map_CAST_2nd_pass.sh
+
+Copied output SAM files to proj space:
+
+mkdir /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq/sam_files
+
+sbatch -p general -t 08:00:00 -N 1 -n 12 --mem=32g --mail-type ALL --mail-user jbt@unc.edu -J gzip_sam --wrap="cp STAR_output_2nd_pass/*.sam /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq/sam_files;
+cp STAR_output_CAST_2nd_pass/*.sam /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq/sam_files;
+gzip /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq/sam_files/*"
+
+
+-------------
+Use Mauro's Perl script intersect_reads_snps16.pl to parse reads from STAR 2nd-pass SAM output files as coming from either the B6 or CAST allele.
+
+touch intersect_reads_snps16.pl
+nedit intersect_reads_snps16.pl
+#edited script to Mauro's script:
+###################################
+#!opt/bin/perl -w
+use strict;
+use Getopt::Std;
+
+#1/20/22
+# accept non-PE data as well as PE data
+
+#6/15/21
+# for paired end rnaseq data, keep mate-pairs together on same line in output file
+#
+# this script only considers mate pairs in which both mates map to the genome 
+
+#9/17/20
+# fix issue with soft-clips being artificially shifted in position -- never completed
+
+#4/13/16
+# input sam alignment, can handle gaps etc.
+
+#10/17/13 read length as input parameter
+
+
+my($in_B6sam, $in_CASTsam, $in_snps,  $peflag, $outpref)=@ARGV;
+
+#pe flag must be y or n
+if (($peflag ne "y") && ($peflag ne "n")) {
+    die "pe flag must be y or n\n";
+}
+
+my %species_hash=("B6"   =>"$in_B6sam", 
+		  "CAST" =>"$in_CASTsam" );
+
+my $snphoa=readsnps($in_snps);
+
+
+#for each genome alignment file, find snp overlapping reads
+foreach my $species_name (keys %species_hash) {
+    print "$species_name\n";
+    intersect($snphoa, $species_hash{$species_name}, $outpref, 
+	    $species_name, $peflag);
+}
+
+my $finalname=parsedups($outpref);
+summary($finalname);
+
+### SUBS ###
+
+
+
+
+
+
+
+
+
+#take sanger informative snp/indel file and file according to chromosomes 
+# broken up into 20kb windows
+#sam is 1-based, coord info in my file is 0 based
+sub readsnps {
+    my ($in)=@_;
+    open (IN, "$in") or die "Cant open infile $in\n";  
+    my %coords;
+
+    <IN>;
+ 
+    while (my $line=<IN>) {
+	chomp $line;
+	my @array=split(/\t/, $line);
+	my $snpid=$array[0];
+	my $chr=$array[1];
+	my $B6start=$array[2];
+	my $B6end=$array[3];
+	my $B6seq=$array[4];
+	my $caststart=$array[5];
+	my $castend=$array[6];
+	my $castseq=$array[7];
+
+	#store \n delimited list, by setting the position to
+	# $end instead of $start, you account for the 1-based coordinate
+	my $pos=int ($B6end/5000);
+	
+	my $sinfo="$B6end\t$B6seq\t$snpid";
+	@{$coords{$chr}{"B6"}}[$pos].="$sinfo\n";
+	  
+	my $cinfo="$castend\t$castseq\t$snpid";
+	@{$coords{$chr}{"CAST"}}[$pos].="$cinfo\n";
+
+    }
+    close IN;
+    print "snps read\n";
+    return \%coords;
+}
+
+
+
+
+
+
+
+
+
+
+#go through bowtie file and line by line intersect with snps
+sub intersect {
+    my ($snps, $in, $out, $species, $pe)=@_;
+    
+    open (IN, "$in") or die "Cant open infile $in\n";  
+
+    my $outname="$out"."_$species";
+    open (OUT, ">$outname") or die "cant open outfile name $outname\n";
+
+    #file for reads with unread cigar strings
+    my $cig="$outname"."_CIG";
+    open (CIG, ">$cig") or die "cant open $out cig\n";
+    
+    my $rc="0"; #reads counted (both mates match)
+    my $tr="0"; # total reads in file
+    my $sct="0";# reads that were soft clipped by star
+    
+    #read sam file
+    # skip headers if they exist
+
+    #strings to store forward and reverse mate data
+    my ($fdata, $rdata, $linecount);
+
+    while (my $fileline=<IN>) {
+	chomp $fileline;
+
+	#skip headders
+	if (($fileline=~/^\@HD/) ||($fileline=~/^\@SQ/)||($fileline=~/^\@PG/)||($fileline=~/^\@CO/)) {
+	    #print "$fileline\n";
+	} else {
+	    my ($subreads, $pass, $tot, $scp, $id, $chr, $strand, $start,
+		$ocigar, $mate, $readspan, $fullseq)=splitsam($fileline, $out, $pe);
+	    
+	    $rc=$rc+$pass;
+	    $tr=$tr+$tot;
+	    $sct=$sct+$scp;
+	    
+	    #cycle through each fragment of the read and accumulate overlapping snps
+	    #, then want to store read id, chr, strand, f start,
+	    # f end r start r end forward cigar, reverse cigar, genome, f snps, r snps
+	    
+	    #list of snps that overlap
+	    my $snpovers;
+	    
+	    foreach my $sr (@{$subreads}) {
+		my @info=split(/\t/, $sr);
+		my $rid=$info[0];
+		my $rchr=$info[1];
+		my $rstart=$info[2];
+		my $rend=$info[3];
+		my $rstrand=$info[4];
+		my $rseq=$info[5];	
+		my $rq=$info[6];
+		my $frag=$info[7];
+		my $rcigar=$info[8];
+
+		$rchr=~s/.fa//;
+		
+		#print "$sr\n";
+		
+		my $frl=length($rseq);
+		
+		#define bin
+		my $ref=int ($rstart/5000);
+		#define intervals to search
+		my $a1pos=$ref-1;
+		my $a2pos=$ref;
+		my $a3pos=$ref+1;
+		
+		#define array of potential interacting snps
+		my @seqs;
+		
+		#if there is data in any of the 3 bins surrounding the gene,
+		# count the number of reads that surround the bin
+		if (defined $snps->{$rchr}{$species}[$a1pos]  || 
+		    defined $snps->{$rchr}{$species}[$a2pos]  || 
+		    defined $snps->{$rchr}{$species}[$a3pos]) {
+		    
+		    my (@a1, @a2, @a3);
+		    
+		    if (defined $snps->{$rchr}{$species}[$a1pos]) {
+			@a1=split(/\n/, $snps->{$rchr}{$species}[$a1pos]);
+			push(@seqs, @a1);
+		    }
+		    
+		    if (defined $snps->{$rchr}{$species}[$a2pos]) {
+			@a2=split(/\n/, $snps->{$rchr}{$species}[$a2pos]);
+			push(@seqs, @a2);
+		    }
+		    
+		    if (defined $snps->{$rchr}{$species}[$a3pos]) {
+			@a3=split(/\n/, $snps->{$rchr}{$species}[$a3pos]);
+			push(@seqs, @a3);
+		}
+		    
+		    #now search snps within @seqs for overlap
+		    # stop after the first snp that overlaps.
+		    my $flag;
+		    foreach my $snpline (@seqs) {
+			
+			#check to see if there is already an overlapping snp
+			if (defined $flag) {
+			    last;
+			}
+			
+			my @snpinfo=split(/\t/, $snpline);
+			my $pos=$snpinfo[0]; #snp location
+			my $snpseq=$snpinfo[1]; #reference seq at loc
+			my $snpid=$snpinfo[2]; #line number of snp on original file
+			
+			#match first overlapping snp
+			if ($rstart<=$pos && $rend>=$pos) {
+			    
+			    my $snppos=$pos-$rstart;
+			    
+			    #find seq of overlapping base to ensure it is 
+			    # not a mismatch
+			    my @bases=split ('', $rseq);
+			    my $rsnpseq=$bases[$snppos];
+			    
+			    
+			    #if snp matches read seq at that position, we are good
+			    if ($rsnpseq=~/$snpseq/) {
+				
+				#find qual of overlapping base
+				my @quals=split ('', $rq);
+				my $snpqual=$quals[$snppos];
+				my $qscore=ord($snpqual)-33;
+				
+				#define flag to end foreach loop
+				$flag=1;
+				
+				#only count if qscore is above 20
+				if ($qscore>=20) {
+				    $snpovers.="$snpid|$snpseq,";
+				}
+			    } else {
+				#print "no match at snp position\n";
+			    }
+			    
+			}
+		    }
+		}	    
+	    }
+	    
+	    #now determine if read overlapped snp at all
+	    #my ($subreads, $pass, $tot, $scp, $id, $chr,
+	    # $strand, $start, $ocigar, $mate, $readspan)=splitsam($fileline, $out, $pe);
+	    if ($pass>0) {
+		
+		my $end=$start+$readspan-1;
+		
+		if (!defined $snpovers) {
+		    $snpovers="NA";
+		} else {
+		    chop $snpovers;
+		}
+		
+		#print "$id\t$snpovers\t$mate\t$chr\n";
+		
+		if ((defined $fdata) && (defined $rdata)) {
+		    
+		    #now both are defined, so print the previous to outfile if there is a snp and reset the data
+		    my $together="$fdata\t$rdata\t$species";
+		    if ($together=~/snpid/) {
+			print OUT "$together\n";
+		    }
+		    
+		    #reset and redefine
+		    $fdata=undef();
+		    $rdata=undef();
+		    if ($mate=~/f/) {
+			$fdata="$id\t$mate\t$chr\t$strand\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+		    } elsif ($mate=~/r/) {
+			$rdata="$mate\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+		    } else {
+			$fdata="$id\t$mate\t$chr\t$strand\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+			$rdata="$mate\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+		    }
+		    
+		} else {
+		    
+		    if ($mate=~/f/) {
+			$fdata="$id\t$mate\t$chr\t$strand\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+		    } elsif ($mate=~/r/) {
+			$rdata="$mate\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+		    } else {
+			$fdata="$id\t$mate\t$chr\t$strand\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+			$rdata="$mate\t$start\t$end\t$ocigar\t$snpovers\t$fullseq";
+		    }
+		    
+		}
+	    }
+	}
+    }
+
+    #final line
+    my $together="$fdata\t$rdata\t$species";
+    if ($together=~/snpid/) {
+	print "$together\n";
+    }
+
+    close OUT;
+    close IN;
+    print "$rc reads considered from $tr reads in $in, $sct reads soft clipped\n";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+#sub to go through each output file and make sure that seq id's are unique.
+# any id that matches both B6 and CAST is ambiguous and not allele specific.
+sub parsedups {
+    my ($in)=@_;
+    
+    my (%all, %dups);
+    
+    #create a hash containing ids that are in both CAST and B6 files
+    # this also gets marks reads that have snps in more than one location in read
+    
+    my @species=("B6", "CAST");
+
+    #go through 129 first
+    my $inname="$in" . "_B6";
+    open (IN, "$inname") or die "no such file as $inname\n";
+    while (my $line=<IN>) {
+	chomp $line;
+	my @array=split(/\t/, $line);
+	my $id=$array[0];	
+	$all{$id}=1;
+	
+    }
+    close IN;
+    
+    #now go through cast
+    $inname="$in" . "_CAST";
+    open (IN, "$inname") or die "no such file as $inname\n";
+    while (my $line=<IN>) {
+	chomp $line;
+	my @array=split(/\t/, $line);
+	my $id=$array[0];
+
+	if (defined $all{$id}) {
+	    $dups{$id}=1;
+	}
+    }
+    close IN;
+
+    
+    #now print final merged file that does not contain dups.
+    # also print one line per read that overlaps a snp
+    
+    my $outname="$in"."_final";
+    open (OUT, ">$outname") or die "cant open final outfile\n";
+    print OUT "readid\tmate\tchr\tstrand\tf_start\tf_end\tf_cig\tf_snps\tf_seq".
+	"\tmate\tr_start\tr_end\tr_cig\tr_snps\tr_seq\tgen\n";
+
+    #now go through both files again
+    foreach my $spe (@species) {
+	my $inname="$in" . "_$spe";
+	open (IN, "$inname") or die "no such file as $inname\n";
+	
+	while (my $line=<IN>) {
+	    chomp $line;
+	    my @array=split(/\t/, $line);
+	    my $id=$array[0];
+
+	    if ((!defined $dups{$id})) {
+		print OUT "$line\n";
+	    }
+	}
+    }
+    close IN;
+    close OUT;
+    return \$outname;
+}
+
+
+
+
+
+
+
+
+
+
+#sub to get summary info from _final file
+sub summary  {
+    my ($ref)=@_;
+    my $in=$$ref;
+    open (IN, "$in") or die "no such file as $in\n";
+
+    my ($b6, $cast, $chr6b6, $chr6cast, $total);
+    <IN>;
+    while (my $line=<IN>) {
+	chomp $line;
+	my @array=split(/\t/, $line);
+	my $chr=$array[2];
+	my $match=$array[15];
+
+	$total++;
+	if ($match=~/B6/) {
+	    $b6++;
+	} elsif ($match=~/CAST/) {
+	    $cast++;
+	}
+	
+	if ($chr=~/chr6/) {
+	    if ($match=~/B6/) {
+		$chr6b6++;
+	    } elsif ($match=~/CAST/) {
+		$chr6cast++;
+	    }
+	}
+    }
+    close IN;
+    print "total\t$total\nb6\t$b6\nCAST\t$cast\nchr6b6\t$chr6b6\nchr6CAST\t$chr6cast\n";
+}
+
+
+
+
+
+
+
+
+
+
+#split each read into multiple read equivalents based on cigar string
+sub splitsam {
+    my ($line, $out, $pe)=@_;
+
+    my $cig="$out"."_CIG";
+    open (CIG, ">$cig") or die "cant open $out cig\n";
+
+    my $i="0";
+    my $j="0";
+    my $sc="0"; #counting reads w/soft clips
+    
+    chomp $line;
+    my @array=split(/\t/, $line);
+    my $id=$array[0];
+    my $flag=$array[1];  
+    my $chr=$array[2];
+    $chr=~s/.fa//;
+    
+    my $start=$array[3];  
+    my $mq=$array[4];  
+    my $cigar=$array[5]; 
+    my $seq=$array[9];
+    my $qual=$array[10];
+
+    my $ocigar=$cigar;
+    my $oseq=$seq;
+  
+    #info for each subread
+    my @subreads;
+
+    #forward or reverse read or not paired end
+    my $mate="f";
+    if ($pe=~/n/) {
+	$mate="NA";
+    }
+
+    $j++;
+
+    #total genomic span of read
+    my $readspan;
+
+    #strand
+    my $strand;
+    
+    #not yet sure what to do with cigars with these operators
+	#if it does not match these
+    if ($cigar!~/(P|H|X)/) {
+	
+	#find strand
+	#flag webpage:
+        #https://broadinstitute.github.io/picard/explain-flags.html
+
+	if ($pe=~/y/) {
+
+	    if ($flag eq 99) { 
+		$strand='+';
+	    } elsif ($flag eq 147) {
+		$strand='+';
+		$mate="r";
+	    } elsif ($flag eq 83) {
+		$strand='-';
+	    } elsif ($flag eq 163) {
+		$strand='-';
+		$mate="r";
+	    }
+	} else {
+	    if ($flag & 16) { 
+		$strand='-';
+	    } else {
+		$strand='+';
+	    }
+	}
+	
+	#parsing cigar string
+
+	if (defined $strand) {
+	    $i++;
+	    #string for cigar length
+	    my $cl=length($cigar);
+	    #array info for cigar
+	    my @cinfo;
+	    while ($cl>0) {
+		$cigar=~s/^(\d+\D)(.*)/$2/;
+		push (@cinfo, $1);
+		$cl=length($cigar)
+	    }
+	    
+	    #go through cigar info and make new start end coords, seq for the read
+	    my ($end);
+	    my $sr;
+	    foreach my $action (@cinfo) {
+		
+		my $srinfo;
+		
+		if ($action=~/(\d+)M/) {
+
+		    #M is match -- store this information as sequence
+		    $sr++;
+		    $end=$start+$1-1;
+		    $readspan+=$1;
+		    my $nid="$id"."__"."$sr"."$mate";
+		    
+		    #extract from beginning of seq
+		    my $toextract=$end-$start+1;
+		    $seq=~s/^([a-zA-Z]{$toextract})(.*)/$2/;
+		    my $sseq=$1;
+		    
+		    $qual=~s/^([\S+]{$toextract})(.*)/$2/;
+		    my $squal=$1;
+		    
+		    $srinfo="$nid\t$chr\t$start\t$end\t$strand\t$sseq\t$squal\t".
+			"$action\t$ocigar";
+		    
+		    push (@subreads, $srinfo);
+		    $start=$end+1;
+		    
+		} elsif  ($action=~/(\d+)N/) {
+		    $start=$start+$1;
+		    $readspan+=$1;
+		    
+		} elsif  ($action=~/(\d+)D/) {
+		    
+		    #read missing \d base in reference
+		    $start=$start+$1;
+		    $readspan-=$1;
+
+		} elsif  ($action=~/(\d+)S/) {
+		    
+		    #soft clip -- here the sequence and qual scores need to be clipped but not the
+		    # starting alignment position
+		    # soft clips at the end of the read do not come with any more sequence either.
+		    $start=$start;
+		    $seq=~s/^([a-zA-Z]{$1})(.*)/$2/;
+		    $qual=~s/^([\S+]{$1})(.*)/$2/;
+		    $sc++;
+		    
+		} elsif  ($action=~/(\d+)I/) {
+		    
+		    #read has base inserted relative to reference
+		    $seq=~s/^([a-zA-Z]{$1})(.*)/$2/;
+		    $qual=~s/^([\S+]{$1})(.*)/$2/;
+		} 
+	    }
+	} else {
+	    #print out to file with PHX in cigar
+	    print CIG "$line\n";
+	}
+    }
+    return (\@subreads, $i, $j, $sc, $id, $chr, $strand, $start, $ocigar, $mate, $readspan, $oseq);
+}
+
+###################################
+
+Copy sangercast07_30_20 file of CAST SNPs to working directory
+
+cp /proj/calabrlb/users/Jackson/CASTmm10_fromMauro/sangercast07_30_20 .
+
+mkdir intersect_reads_snps16_output
+
+touch intersect_reads_snps16_loop.sh
+nedit intersect_reads_snps16_loop.sh
+###################################
+module load perl
+
+for S in STAR_output_2nd_pass/*.2nd_passAligned.out.sam; do
+	prefix_stripped=${S##STAR_output_2nd_pass/} #create variable prefix_stripped where prefix is removed
+	sample_name=${prefix_stripped%.2nd_passAligned.out.sam} #create variable sample_name where suffix is also removed
+	
+	sbatch -p general -t 1- --mem=32g --mail-type ALL --mail-user jbt@unc.edu -J intersect_snps_${sample_name} -o slurm_out_err/intersect_snps_${sample_name}.out -e slurm_out_err/intersect_snps_${sample_name}.err --wrap="perl intersect_reads_snps16.pl STAR_output_2nd_pass/${sample_name}.2nd_passAligned.out.sam STAR_output_CAST_2nd_pass/${sample_name}_CAST.2nd_passAligned.out.sam sangercast07_30_20 n intersect_reads_snps16_output/${sample_name}_snps"
+	
+done
+###################################
+
+sh intersect_reads_snps16_loop.sh
+
+#Took a long time to run (~18 hours for longest job)
+
+Save output to proj:
+
+cp -R intersect_reads_snps16_output /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq
+
+
+-------------
+Use Mauro's ase_analyzer10.pl Perl script to assign B6/CAST-parsed reads to genes
+
+touch ase_analyzer10_JBT_v2.pl
+nedit ase_analyzer10_JBT_v2.pl
+#edit to script:
+##############################
+#!opt/bin/perl -w
+use strict;
+
+#2/7/23 JBT ("v2"):
+#fixed a typo causing the column names of the the final output table to be out of the intended order
+#used to be: print OUT "id\tchr\tstrand\tstart\tend\tB6_exon\tB6_ejc\tB6_intron\tB6_total\tcast_exon\tcast_ejc\tcast_intron\tcast_total\n"
+#changed to: print OUT "id\tchr\tstart\tend\tstrand\tB6_exon\tB6_ejc\tB6_intron\tB6_total\tcast_exon\tcast_ejc\tcast_intron\tcast_total\n" 
+
+#1/20/22
+# v9 was 129/cast specific, now B6/cast specific
+# also accepts single and pe
+# also fixed error in pe intersection from v9
+# use with snp_reads_final output file from intersect_reads_snps16.pl
+
+#6/18/21
+# substantial reworking -- designed for paired end reads, to count allelic
+# splicejunction and non-junction overlapping reads
+# takes output of intersect_reads_snps15.pl and gencode basic gtf file
+
+
+#1/15/15
+# modified from v6
+# strand info still counts
+# v8 tracks the total number of unique snpids counted per gene
+
+#7/27/14
+# no longer output rpm (from ase4)
+# UDP method returns reverse strand of reality, take this into account when parsing.
+
+#1/15 modified to output rpm in addition to reads
+#10/29 modified to input my collapsed list of gene symbol coords
+#10/26 to take strand into account
+#10/24/09
+#take output of intersect_reads_snps2.pl (list of snp-overlapping reads) 
+# and intersect it with a list of genomic coordinates (like ref-seq genes)
+
+my($in_gtf, $in_snp_reads, $peflag, $outpref)=@ARGV;
+
+#pe flag must be y or n
+if (($peflag ne "y") && ($peflag ne "n")) {
+    die "pe flag must be y or n\n";
+}
+
+my ($genehoa, $exonhoa, $ejchoa, $genedata)=readgtf($in_gtf);
+my ($genecounts)=intersect($genehoa, $exonhoa, $ejchoa, $in_snp_reads, $peflag);
+printer($genecounts, $genedata, $outpref);
+
+### SUBS ###
+
+#take snp overlapping readand parse into 
+# broken up into 10kb windows
+sub readgtf {
+    my ($in)=@_;
+    open (IN, "$in") or die "Cant open infile $in\n";
+    
+    my %coords;
+    my %exons;
+    my %ejcs;
+    my %genedata;
+    
+    <IN>;
+    <IN>;
+    <IN>;
+    <IN>;
+    <IN>;
+
+    #string to store upstream exon end.
+    my $eend;
+
+    #string to store gene name for exons
+    my $gene_name;
+    
+    while (my $line=<IN>) {
+	chomp $line;
+	my @array=split(/\t/, $line);
+	my $chr=$array[0];
+	my $type=$array[2];
+	my $start=$array[3];
+	my $end=$array[4];
+	my $strand=$array[6];
+	my $ginfo=$array[8];
+
+	if ($type=~/gene/) {
+	    my @garray=split(/;/,$ginfo);
+	    my $lgn=$garray[2];
+	    $lgn=~/"(\S+)"/;
+	    my $gn="$1"."_"."$chr"."_"."$start"."_"."$end"."_"."($strand)";
+	    $gene_name=$gn;
+	    
+	    #bins to add gene to
+	    my $fbin=int ($start/5000);
+	    my $ebin=int ($end/5000);
+	    for (my $i=$fbin; $i<=$ebin; $i++) {
+		@{$coords{$chr}}[$i].="$start\t$end\t$strand\t$gene_name\n";
+	    }
+
+	    #reset stored data
+	    $eend=undef();
+
+	    #print "$type:$start\t$end\t$strand\t$gene_name\n";
+
+	    #store gene info for final file printing
+	    $genedata{$gene_name}="$chr\t$start\t$end\t$strand";
+	    
+	} elsif ($type=~/transcript/) {
+	    
+	    #reset stored data
+	    $eend=undef();
+
+	} elsif ($type=~/exon/) {
+
+	    #store pure exon coords
+	    my $fbin=int ($start/5000);
+	    my $ebin=int ($end/5000);
+	    for (my $i=$fbin; $i<=$ebin; $i++) {
+		@{$exons{$chr}}[$i].="$start\t$end\t$strand\t$gene_name\n";
+	    }
+
+	    #print "$type:$start\t$end\t$strand\t$gene_name\n";
+
+	    #order of storing things differs depending on strand
+	    if ($strand eq '+') {
+		
+		if (!defined $eend) {
+		    #then this is a first exon, store the end
+		    $eend=$end;
+		} else {
+		    #then this is at least a second exon and there exists a junction
+		    my $estart=$start;
+
+		    #store the junction
+		    my $fbin=int ($eend/5000);
+		    my $ebin=int ($estart/5000);
+		    for (my $i=$fbin; $i<=$ebin; $i++) {
+			@{$ejcs{$chr}}[$i].="$eend\t$estart\t$strand\t$gene_name\n";
+		    }
+
+		    #print "ejc pos:$eend\t$estart\t$strand\t$gene_name\n";
+		    
+		    #overwrite the eend for the next junction
+		    $eend=$end;
+		    
+		}
+		
+	    } else {
+		
+		#this is for negative stranded transcrips, whose exons are listed
+		# in the opposite direction -- last exon first in gtf
+		
+		if (!defined $eend) {
+		    #then this is a first exon, store the end
+		    $eend=$start;
+		} else {
+		    #then this is at least a second exon and there exists a junction
+		    my $estart=$end;
+
+		    #store the junction
+		    my $fbin=int ($estart/5000);
+		    my $ebin=int ($eend/5000);
+		    for (my $i=$fbin; $i<=$ebin; $i++) {
+			@{$ejcs{$chr}}[$i].="$estart\t$eend\t$strand\t$gene_name\n";
+		    }
+
+		    #print "ejc neg:$estart\t$eend\t$strand\t$gene_name\n";
+		    
+		    #overwrite the eend for the next junction
+		    $eend=$start;
+		    
+		}
+	    }
+	}	
+    }
+    return \%coords, \%exons, \%ejcs, \%genedata;
+    close IN;
+}
+
+
+
+
+
+
+# assign snp reads to genes
+sub intersect {
+    my ($genes, $exons, $ejcs, $in, $pe)=@_;
+    
+    open (IN, "$in") or die "Cant open infile $in\n";  
+
+    my %counted; #hash to store reads that have been counted
+    my %genecounts; #geneid->$gen->(intron|exon|ejc)=count
+
+    my $tr; #all reads
+    my $gr; #all reads that overlap genes
+    
+    <IN>;
+    while (my $line=<IN>) {
+	chomp $line;
+	my @array=split(/\t/, $line);
+	my $rid=$array[0];
+	my $chr=$array[2];
+	my $rstrand=$array[3];
+	my ($rstart, $rend);
+
+	$tr++;
+
+	if ($pe=~/y/) {
+	    
+	    if ($rstrand eq '+') {
+		$rstart=$array[4];
+		$rend=$array[11];
+	    } else {
+		$rstart=$array[10];
+		$rend=$array[5];
+	    }
+	} else {
+	    $rstart=$array[4];
+	    $rend=$array[5];
+	}
+	
+	my $gen=$array[15];
+	
+	#define bin
+	my $rsbin=int ($rstart/5000);
+	my $rebin=int ($rend/5000);
+	#define intervals to search
+	my $binstart=$rsbin-1;
+	my $binend=$rebin+1;
+	
+	#define array of potential interacting features -- genes, exons, ejcs
+	my @igenes;
+	my @iexons;
+	my @iejcs;
+
+	#if there is data in any of the bins surrounding the gene,
+	# genes
+	for (my $i=$binstart; $i<=$binend; $i++) {
+	    if (defined $genes->{$chr}[$i]) {
+
+		my @bininfo;
+
+		#split the info in the bins by\n
+		@bininfo=split(/\n/, $genes->{$chr}[$i]);
+		push(@igenes, @bininfo);
+
+	    }
+	}
+	# exons
+	for (my $i=$binstart; $i<=$binend; $i++) {
+	    if (defined $exons->{$chr}[$i]) {
+
+		my @bininfo;
+
+		#split the info in the bins by\n
+		@bininfo=split(/\n/, $exons->{$chr}[$i]);
+		push(@iexons, @bininfo);
+
+	    }
+	}
+	# ejcs
+	for (my $i=$binstart; $i<=$binend; $i++) {
+	    if (defined $ejcs->{$chr}[$i]) {
+
+		my @bininfo;
+
+		#split the info in the bins by\n
+		@bininfo=split(/\n/, $ejcs->{$chr}[$i]);
+		push(@iejcs, @bininfo);
+
+	    }
+	}
+
+	
+	#now search if genes overlap read -- if yes, then need to decide on
+	# exon vs ejc vs intron
+	foreach my $geneline (@igenes) {
+
+	    my @geneinfo=split(/\t/, $geneline);
+	    my $gstart=$geneinfo[0];
+	    my $gend=$geneinfo[1];
+	    my $gstrand=$geneinfo[2];
+	    my $gname=$geneinfo[3];
+
+	    if (!defined $counted{$rid}) {
+		#$counted{$rid}=1; #define the read as counted
+			
+		if ("$rstrand" ne "$gstrand") { #data are reverse stranded
+		    
+		    #determine whether it overlaps gene -- if so, then examine exons and ejcs
+		    if (($rend>=$gstart && $rend<=$gend) ||
+			($rstart>=$gstart && $rstart<=$gend)) {
+			
+			#then the read overlaps the gene in some capacity
+			# but I only want to count each read once, so it will hit the first
+			# overlapping gene/exon/ejc/intron. %counted		    
+			
+
+			#print "$geneline\n\t$rstart, $rend, $rstrand, $chr\n";
+			
+			#now search exons
+			foreach my $exonline (@iexons) {
+			    
+			    my @exoninfo=split(/\t/, $exonline);
+			    my $exonstart=$exoninfo[0];
+			    my $exonend=$exoninfo[1];
+			    my $exonstrand=$exoninfo[2];
+			    my $gname=$exoninfo[3];
+			    
+			    if (!defined $counted{$rid}) {
+				if ("$rstrand" ne "$exonstrand") { #data are reverse stranded
+				    #determine whether it falls completely within the exon
+				    if ($rstart>=$exonstart && $rend<=$exonend) {
+					#print "\texon overlap: $chr:$rstart-$rend, $rstrand, $exonstart, $exonend, $exonstrand\n";
+					$genecounts{$gname}{$gen}{'exon'}+=1;
+					$counted{$rid}=1; #define the read as counted
+					$gr++;
+				    }
+				}
+			    }
+			}
+			
+			#now if it didnt get defined, search ejcs
+			if (!defined $counted{$rid}) {
+			    foreach my $ejcline (@iejcs) {
+				
+				my @ejcinfo=split(/\t/, $ejcline);
+				my $ejcstart=$ejcinfo[0];
+				my $ejcend=$ejcinfo[1];
+				my $ejcstrand=$ejcinfo[2];
+				my $gname=$ejcinfo[3];
+				
+				if (!defined $counted{$rid}) {
+				    if ("$rstrand" ne "$ejcstrand") { #data are reverse stranded
+					#determine whether it completely encompasses the junction
+					if ($rstart<=$ejcstart && $rend>=$ejcend) {
+					    #print "\tejc overlap! $chr:$rstart-$rend, $rstrand, $ejcstart, $ejcend, $ejcstrand\n";
+					    $genecounts{$gname}{$gen}{'ejc'}+=1;
+					    $counted{$rid}=1; #define the read as counted
+					    $gr++;
+					}
+				    }
+				}
+			    }
+			}
+
+			#now if it still wasnt counted, it falls in an intron!
+			if (!defined $counted{$rid}) {
+			    #print "\tits in an intron! $chr:$rstart-$rend, $rstrand\n";
+			    $genecounts{$gname}{$gen}{'intron'}+=1;			    
+			    $counted{$rid}=1; #define the read as counted
+			    $gr++;
+			}
+		    }   					    
+		}
+	    }
+	}
+    }
+    print "$gr reads overlap genes from $tr reads total\n";
+    return \%genecounts;
+}
+
+sub printer{
+    my ($gcounts, $geneinfo, $outname)=@_;
+    open (OUT, ">$outname") or die "cant open outfile name $outname\n";
+    
+    print OUT "id\tchr\tstart\tend\tstrand\tB6_exon\tB6_ejc\tB6_intron\tB6_total\tcast_exon\tcast_ejc\tcast_intron\tcast_total\n";
+
+    foreach my $gene (keys %{$geneinfo}) {
+
+	my $b6exon="0";
+	my $b6ejc="0";
+	my $b6intron="0";
+	my $b6tot="0";
+	my $cexon="0";
+	my $cejc="0";
+	my $cintron="0";
+	my $ctot="0";
+	
+	if (defined $gcounts->{$gene}) {
+	    if (defined $gcounts->{$gene}{'B6'}{'exon'}) {
+		$b6exon=$gcounts->{$gene}{'B6'}{'exon'};
+		$b6tot+=$b6exon;
+		
+	    }
+	    if (defined $gcounts->{$gene}{'B6'}{'ejc'}) {
+		$b6ejc=$gcounts->{$gene}{'B6'}{'ejc'};
+		$b6tot+=$b6ejc;
+
+	    }
+	    if (defined $gcounts->{$gene}{'B6'}{'intron'}) {
+		$b6intron=$gcounts->{$gene}{'B6'}{'intron'};
+		$b6tot+=$b6intron;
+
+	    }
+	    if (defined $gcounts->{$gene}{'CAST'}{'exon'}) {
+		$cexon=$gcounts->{$gene}{'CAST'}{'exon'};
+		$ctot+=$cexon;
+		
+	    }
+	    if (defined $gcounts->{$gene}{'CAST'}{'ejc'}) {
+		$cejc=$gcounts->{$gene}{'CAST'}{'ejc'};
+		$ctot+=$cejc;
+		
+	    }
+	    if (defined $gcounts->{$gene}{'CAST'}{'intron'}) {
+		$cintron=$gcounts->{$gene}{'CAST'}{'intron'};
+		$ctot+=$cintron;
+		
+	    }
+	}
+
+	print OUT "$gene\t$geneinfo->{$gene}\t$b6exon\t$b6ejc\t$b6intron\t$b6tot\t$cexon\t$cejc\t$cintron\t$ctot\n";	
+	    
+    }
+}
+#################################
+
+#usage: perl ase_analyzer10_JBT_v2.pl gencode.vM25.basic.annotation.gtf out_final n out_genes
+
+Copy gencode.vM25.basic.annotation.gtf to my working directory:
+
+cp /proj/calabrlb/users/Jackson/gencode.vM25.basic.annotation.gtf .
+
+touch ase_analyzer10_loop.sh
+nedit ase_analyzer10_loop.sh
+###################################
+module load perl
+
+for S in intersect_reads_snps16_output/*_snps_final; do
+	prefix_stripped=${S##intersect_reads_snps16_output/} #create variable prefix_stripped where prefix is removed
+	sample_name=${prefix_stripped%_snps_final} #create variable sample_name where suffix is also removed
+	
+	sbatch -p general -t 1- --mem=16g --mail-type ALL --mail-user jbt@unc.edu -J ase_analyzer10_${sample_name} -o slurm_out_err/ase_analyzer10_${sample_name}.out -e slurm_out_err/ase_analyzer10_${sample_name}.err --wrap="perl ase_analyzer10_JBT_v2.pl gencode.vM25.basic.annotation.gtf intersect_reads_snps16_output/${sample_name}_snps_final n ase_analyzer10_output/${sample_name}_snps_genes"
+	
+done
+###################################
+
+mkdir ase_analyzer10_output
+
+sh ase_analyzer10_loop.sh
+
+
+------------
+Sorting the rows in the ase_output10.pl data files:
+
+cd ase_analyzer10_output
+
+for S in *_snps_genes; do ( head -n 1 "$S" ; tail -n +2 "$S" | sort -k2,2 -k3,3n ) > "$S"_sorted; done
+mkdir sorted_chr_start
+mv *_sorted sorted_chr_start
+
+Checking that sorted files all have the same starting rows:
+
+for S in sorted_chr_start/*; do (echo "$S"; head -n 3 "$S"; wc -l "$S" ); done
+
+All have the same 3 first rows and are 55402 lines long, as desired - for example:
+
+sorted_chr_start/Xist5_RNAseq_snps_genes_sorted
+id      chr     start   end     strand  B6_exon B6_ejc  B6_intron       B6_total        cast_exon       cast_ejc        cast_intron     cast_total
+4933401J01Rik_chr1_3073253_3074322_(+)  chr1    3073253 3074322 +       0       0       0       0       0       0       0       0
+Gm26206_chr1_3102016_3102125_(+)        chr1    3102016 3102125 +       0       0       0       0       0       0       0       0
+55402 sorted_chr_start/Xist5_RNAseq_snps_genes_sorted
+
+
+--------
+Now compile all the data into a single file with the desired formatting.
+
+awk 'OFS="\t" {print $1, $2, $3, $4, $5}' sorted_chr_start/Airn2_7d_repA_RNAseq_snps_genes_sorted | head
+id      chr     start   end     strand
+4933401J01Rik_chr1_3073253_3074322_(+)  chr1    3073253 3074322 +
+Gm26206_chr1_3102016_3102125_(+)        chr1    3102016 3102125 +
+Xkr4_chr1_3205901_3671498_(-)   chr1    3205901 3671498 -
+Gm18956_chr1_3252757_3253236_(+)        chr1    3252757 3253236 +
+Gm37180_chr1_3365731_3368549_(-)        chr1    3365731 3368549 -
+Gm37363_chr1_3375556_3377788_(-)        chr1    3375556 3377788 -
+Gm37686_chr1_3464977_3467285_(-)        chr1    3464977 3467285 -
+Gm1992_chr1_3466587_3513553_(+) chr1    3466587 3513553 +
+Gm37329_chr1_3512451_3514507_(-)        chr1    3512451 3514507 -
+
+Create new file 'starting_columns.txt' with first five columns:
+
+awk 'OFS="\t" {print $1, $2, $3, $4, $5}' sorted_chr_start/Airn2_7d_repA_RNAseq_snps_genes_sorted > starting_columns.txt
+
+Extract the gene name from the "id" column and make this a new column:
+
+tail -n +2 starting_columns.txt | awk -F'_' '{print $1}' > gene_column
+
+Add a column header "gene" to gene_column:
+
+(echo "gene"; cat gene_column) > gene_column2 #cat displays all of gene_column
+
+Create new file starting_columns2.txt where the "gene" column is inserted after the "id" column. Use paste command to join together columns:
+
+awk '{print $1}' starting_columns.txt > id_column
+awk 'OFS="\t" {print $2, $3, $4, $5}' starting_columns.txt > chr_start_end_strand_columns
+paste id_column gene_column2 chr_start_end_strand_columns > starting_columns2.txt
+
+head starting_columns2.txt
+id      gene    chr     start   end     strand
+4933401J01Rik_chr1_3073253_3074322_(+)  4933401J01Rik   chr1    3073253 3074322 +
+Gm26206_chr1_3102016_3102125_(+)        Gm26206 chr1    3102016 3102125 +
+Xkr4_chr1_3205901_3671498_(-)   Xkr4    chr1    3205901 3671498 -
+Gm18956_chr1_3252757_3253236_(+)        Gm18956 chr1    3252757 3253236 +
+Gm37180_chr1_3365731_3368549_(-)        Gm37180 chr1    3365731 3368549 -
+Gm37363_chr1_3375556_3377788_(-)        Gm37363 chr1    3375556 3377788 -
+Gm37686_chr1_3464977_3467285_(-)        Gm37686 chr1    3464977 3467285 -
+Gm1992_chr1_3466587_3513553_(+) Gm1992  chr1    3466587 3513553 +
+Gm37329_chr1_3512451_3514507_(-)        Gm37329 chr1    3512451 3514507 -
+
+Next step: For each sorted_chr_start/*_snps_genes_sorted file, make new files where the column headers for columns 6-13 include the sample ID (e.g., "Airn2_7d_repA_RNAseq"). Need to separate each header with a tab (\t using the printf function, like echo. Also need to add \n at the end to print a new line, as printf does not automatically do this). IMPORTANT: here, omitting the "gene" column that I added to the starting_columns2.txt file. Incorporatng this now would make the header one item too long; instead will later add columns 6-13 of each data file to the correct "gene"-header-containing columns of starting_columns2.txt.
+
+mkdir sorted_chr_start_SNheader
+
+touch SN_header_loop.sh
+nedit SN_header_loop.sh #edit to:
+###########
+for S in sorted_chr_start/*_snps_genes_sorted; do
+	prefix_stripped=${S##sorted_chr_start/} #create variable prefix_stripped where prefix is removed
+	sample_name=${prefix_stripped%_snps_genes_sorted} #create variable sample_name where suffix is also removed
+	
+	printf "id\tchr\tstart\tend\tstrand\t${sample_name}_B6_exon\t${sample_name}_B6_ejc\t${sample_name}_B6_intron\t${sample_name}_B6_total\t${sample_name}_cast_exon\t${sample_name}_cast_ejc\t${sample_name}_cast_intron\t${sample_name}_cast_total\n" > SN_header
+	(cat SN_header; tail -n +2 sorted_chr_start/${sample_name}_snps_genes_sorted) > sorted_chr_start_SNheader/${sample_name}_snps_genes_sorted_SNheader
+
+done
+##########
+
+sh SN_header_loop.sh
+
+head sorted_chr_start_SNheader/Airn2_7d_repA_RNAseq_snps_genes_sorted_SNheader
+id      chr     start   end     strand  Airn2_7d_repA_RNAseq_B6_exon    Airn2_7d_repA_RNAseq_B6_ejc     Airn2_7d_repA_RNAseq_B6_intron  Airn2_7d_repA_RNAseq_B6_total Airn2_7d_repA_RNAseq_cast_exon  Airn2_7d_repA_RNAseq_cast_ejc   Airn2_7d_repA_RNAseq_cast_intron        Airn2_7d_repA_RNAseq_cast_total
+4933401J01Rik_chr1_3073253_3074322_(+)  chr1    3073253 3074322 +       0       0       0       0       0       0       0       0
+Gm26206_chr1_3102016_3102125_(+)        chr1    3102016 3102125 +       0       0       0       0       0       0       0       0
+Xkr4_chr1_3205901_3671498_(-)   chr1    3205901 3671498 -       4       0       272     276     0       0       200     200
+Gm18956_chr1_3252757_3253236_(+)        chr1    3252757 3253236 +       0       0       0       0       0       0       0       0
+Gm37180_chr1_3365731_3368549_(-)        chr1    3365731 3368549 -       1       0       0       1       0       0       0       0
+Gm37363_chr1_3375556_3377788_(-)        chr1    3375556 3377788 -       1       0       0       1       0       0       0       0
+Gm37686_chr1_3464977_3467285_(-)        chr1    3464977 3467285 -       1       0       0       1       0       0       0       0
+Gm1992_chr1_3466587_3513553_(+) chr1    3466587 3513553 +       0       0       0       0       0       0       0       0
+Gm37329_chr1_3512451_3514507_(-)        chr1    3512451 3514507 -       0       0       0       0       0       0       0       0
+
+Now to finally combine the data from each file.
+
+In the script below, initialize a file 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt to start with the text of starting_columns2.txt. Then, using the awk and paste functions, iterate through each data file in sorted_chr_start_SNheader/*_snps_genes_sorted_SNheader to paste data columns 6-13 of each file to 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt.
+
+touch build_all-data_file.sh
+nedit build_all-data_file.sh #edit to:
+###########
+cat starting_columns2.txt > 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt
+
+for S in sorted_chr_start_SNheader/*_snps_genes_sorted_SNheader; do
+	
+	awk 'OFS="\t" {print $6, $7, $8, $9, $10, $11, $12, $13}' $S > temp.txt
+	paste 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt temp.txt > temp2.txt
+	cat temp2.txt > 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt
+
+done
+
+rm temp.txt
+##########
+
+sh build_all-data_file.sh
+
+This appears to have worked to generate a big file with all the data compiled (showing header and first three genes below):
+
+head -n 4 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt
+id      gene    chr     start   end     strand  Airn2_7d_repA_RNAseq_B6_exon    Airn2_7d_repA_RNAseq_B6_ejc     Airn2_7d_repA_RNAseq_B6_intron  Airn2_7d_repA_RNAseq_B6_total Airn2_7d_repA_RNAseq_cast_exon  Airn2_7d_repA_RNAseq_cast_ejc   Airn2_7d_repA_RNAseq_cast_intron        Airn2_7d_repA_RNAseq_cast_total Airn2_7d_repB_RNAseq_B6_exon  Airn2_7d_repB_RNAseq_B6_ejc     Airn2_7d_repB_RNAseq_B6_intron  Airn2_7d_repB_RNAseq_B6_total   Airn2_7d_repB_RNAseq_cast_exon  Airn2_7d_repB_RNAseq_cast_ejc Airn2_7d_repB_RNAseq_cast_intron        Airn2_7d_repB_RNAseq_cast_total Airn2_repA_RNAseq_B6_exon       Airn2_repA_RNAseq_B6_ejc     Airn2_repA_RNAseq_B6_intron      Airn2_repA_RNAseq_B6_total      Airn2_repA_RNAseq_cast_exon     Airn2_repA_RNAseq_cast_ejc      Airn2_repA_RNAseq_cast_intronAirn2_repA_RNAseq_cast_total     Airn2_repB_RNAseq_B6_exon       Airn2_repB_RNAseq_B6_ejc        Airn2_repB_RNAseq_B6_intron     Airn2_repB_RNAseq_B6_total   Airn2_repB_RNAseq_cast_exon      Airn2_repB_RNAseq_cast_ejc      Airn2_repB_RNAseq_cast_intron   Airn2_repB_RNAseq_cast_total    Airn5_7d_repA_RNAseq_B6_exon Airn5_7d_repA_RNAseq_B6_ejc      Airn5_7d_repA_RNAseq_B6_intron  Airn5_7d_repA_RNAseq_B6_total   Airn5_7d_repA_RNAseq_cast_exon  Airn5_7d_repA_RNAseq_cast_ejcAirn5_7d_repA_RNAseq_cast_intron Airn5_7d_repA_RNAseq_cast_total Airn5_7d_repB_RNAseq_B6_exon    Airn5_7d_repB_RNAseq_B6_ejc     Airn5_7d_repB_RNAseq_B6_intronAirn5_7d_repB_RNAseq_B6_total   Airn5_7d_repB_RNAseq_cast_exon  Airn5_7d_repB_RNAseq_cast_ejc   Airn5_7d_repB_RNAseq_cast_intron        Airn5_7d_repB_RNAseq_cast_total       Airn5_repA_RNAseq_B6_exon       Airn5_repA_RNAseq_B6_ejc        Airn5_repA_RNAseq_B6_intron     Airn5_repA_RNAseq_B6_total      Airn5_repA_RNAseq_cast_exon   Airn5_repA_RNAseq_cast_ejc      Airn5_repA_RNAseq_cast_intron   Airn5_repA_RNAseq_cast_total    Airn5_repB_RNAseq_B6_exon       Airn5_repB_RNAseq_B6_ejc      Airn5_repB_RNAseq_B6_intron     Airn5_repB_RNAseq_B6_total      Airn5_repB_RNAseq_cast_exon     Airn5_repB_RNAseq_cast_ejc      Airn5_repB_RNAseq_cast_intron Airn5_repB_RNAseq_cast_total    empty1_RNAseq_B6_exon   empty1_RNAseq_B6_ejc    empty1_RNAseq_B6_intron empty1_RNAseq_B6_total  empty1_RNAseq_cast_exon       empty1_RNAseq_cast_ejc  empty1_RNAseq_cast_intron       empty1_RNAseq_cast_total        empty2_RNAseq_B6_exon   empty2_RNAseq_B6_ejc    empty2_RNAseq_B6_intron       empty2_RNAseq_B6_total  empty2_RNAseq_cast_exon empty2_RNAseq_cast_ejc  empty2_RNAseq_cast_intron       empty2_RNAseq_cast_total     empty3_RNAseq_B6_exon    empty3_RNAseq_B6_ejc    empty3_RNAseq_B6_intron empty3_RNAseq_B6_total  empty3_RNAseq_cast_exon empty3_RNAseq_cast_ejc  empty3_RNAseq_cast_intron     empty3_RNAseq_cast_total        empty4_RNAseq_B6_exon   empty4_RNAseq_B6_ejc    empty4_RNAseq_B6_intron empty4_RNAseq_B6_total  empty4_RNAseq_cast_exon       empty4_RNAseq_cast_ejc  empty4_RNAseq_cast_intron       empty4_RNAseq_cast_total        Xist1_RNAseq_B6_exon    Xist1_RNAseq_B6_ejc     Xist1_RNAseq_B6_intron        Xist1_RNAseq_B6_total   Xist1_RNAseq_cast_exon  Xist1_RNAseq_cast_ejc   Xist1_RNAseq_cast_intron        Xist1_RNAseq_cast_total Xist3_10ngmL_repA_RNAseq_B6_exon      Xist3_10ngmL_repA_RNAseq_B6_ejc Xist3_10ngmL_repA_RNAseq_B6_intron      Xist3_10ngmL_repA_RNAseq_B6_total       Xist3_10ngmL_repA_RNAseq_cast_exon    Xist3_10ngmL_repA_RNAseq_cast_ejc       Xist3_10ngmL_repA_RNAseq_cast_intron    Xist3_10ngmL_repA_RNAseq_cast_total     Xist3_10ngmL_repB_RNAseq_B6_exon      Xist3_10ngmL_repB_RNAseq_B6_ejc Xist3_10ngmL_repB_RNAseq_B6_intron      Xist3_10ngmL_repB_RNAseq_B6_total       Xist3_10ngmL_repB_RNAseq_cast_exon    Xist3_10ngmL_repB_RNAseq_cast_ejc       Xist3_10ngmL_repB_RNAseq_cast_intron    Xist3_10ngmL_repB_RNAseq_cast_total     Xist3_RNAseq_B6_exon Xist3_RNAseq_B6_ejc      Xist3_RNAseq_B6_intron  Xist3_RNAseq_B6_total   Xist3_RNAseq_cast_exon  Xist3_RNAseq_cast_ejc   Xist3_RNAseq_cast_intron        Xist3_RNAseq_cast_total       Xist4_RNAseq_B6_exon    Xist4_RNAseq_B6_ejc     Xist4_RNAseq_B6_intron  Xist4_RNAseq_B6_total   Xist4_RNAseq_cast_exon  Xist4_RNAseq_cast_ejc Xist4_RNAseq_cast_intron        Xist4_RNAseq_cast_total Xist5_10ngmL_repA_RNAseq_B6_exon        Xist5_10ngmL_repA_RNAseq_B6_ejc Xist5_10ngmL_repA_RNAseq_B6_intron    Xist5_10ngmL_repA_RNAseq_B6_total       Xist5_10ngmL_repA_RNAseq_cast_exon      Xist5_10ngmL_repA_RNAseq_cast_ejc       Xist5_10ngmL_repA_RNAseq_cast_intron  Xist5_10ngmL_repA_RNAseq_cast_total     Xist5_10ngmL_repB_RNAseq_B6_exon        Xist5_10ngmL_repB_RNAseq_B6_ejc Xist5_10ngmL_repB_RNAseq_B6_intron    Xist5_10ngmL_repB_RNAseq_B6_total       Xist5_10ngmL_repB_RNAseq_cast_exon      Xist5_10ngmL_repB_RNAseq_cast_ejc       Xist5_10ngmL_repB_RNAseq_cast_intron  Xist5_10ngmL_repB_RNAseq_cast_total     Xist5_RNAseq_B6_exon    Xist5_RNAseq_B6_ejc     Xist5_RNAseq_B6_intron  Xist5_RNAseq_B6_total   Xist5_RNAseq_cast_exon        Xist5_RNAseq_cast_ejc   Xist5_RNAseq_cast_intron        Xist5_RNAseq_cast_total
+4933401J01Rik_chr1_3073253_3074322_(+)  4933401J01Rik   chr1    3073253 3074322 +       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0
+Gm26206_chr1_3102016_3102125_(+)        Gm26206 chr1    3102016 3102125 +       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0       0    00       0
+Xkr4_chr1_3205901_3671498_(-)   Xkr4    chr1    3205901 3671498 -       4       0       272     276     0       0       200     200     3       0       269  272      1       0       239     240     0       0       298     298     1       0       224     225     2       0       266     268     0       0       184  184      0       0       80      80      0       0       98      98      0       0       102     102     0       0       106     106     0       0       107  107      4       0       143     147     3       0       113     116     0       0       148     148     4       0       309     313     2       0       75   77       3       0       252     255     0       0       161     161     2       0       372     374     1       0       266     267     0       0       40   40       0       0       24      24      3       0       194     197     2       0       127     129     2       0       156     158     0       0       91   91       1       0       399     400     0       0       222     222     2       0       233     235     1       0       136     137     2       0       248  250      1       0       184     185     1       0       125     126     0       0       68      68      0       0       338     338     5       0       230  235      4       0       258     262     0       0       157     157
+
+Checking number of rows in the file (55402, as expected):
+
+wc -l 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt
+55402 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt
+
+Copied this all-data-combined file to my proj space:
+cp 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq
+
+Somewhat redundant, but also copied all contents of ase_analyzer10_output to proj:
+cd ../
+cp -R ase_analyzer10_output /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq
+
+Also copied this notes file into a text file to store in this /proj/ directory:
+
+touch /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq/20230411_RMCE_Airn_Xist_RNAseq_data_processing_notes.txt
+nedit /proj/calabrlb/users/Jackson/20230411_RMCE_Airn_Xist_RNAseq/20230411_RMCE_Airn_Xist_RNAseq_data_processing_notes.txt
+
+#coped and pasted this entire document, saved
+
+---------
+Downloaded 2023-04-11_RMCE_Airn_Xist_empty_RNAseq_SNP_reads_all_data.txt from UNC OnDemand to my local computer and continued analysis with Python
