@@ -1,0 +1,118 @@
+---
+title: "RPKM Airn and Xist in TSCs"
+output: html_notebook
+---
+
+Load needed libraries
+```{r}
+#install.packages("tidyverse", dependencies = TRUE )
+library(tidyverse)
+library(readr)
+```
+
+Change this for each dataset that you run
+```{r}
+## Give rootname and file for data
+## This only works if ercc file is titled "ercc_rootname_fc" and the gene file is "rootname_fc"
+
+#name = "cb_tsc_6_2_no_actino_rna_b6"
+#name = "cb_tsc_6_2_no_flavo_rep1_rna_b6"
+#name = "cb_tsc_6_2_no_flavo_rep2_rna_b6"
+#name = "ntg01_rna"
+#name = "ntg04_rna"
+#name = "ntg08_rna"
+#name = "ntg12_rna"
+
+#name = "cb_tsc_6_2_no_actino_rna_b6_Airn"
+#name = "cb_tsc_6_2_no_flavo_rep1_rna_b6_Airn"
+#name = "cb_tsc_6_2_no_flavo_rep2_rna_b6_Airn"
+#name = "ntg01_rna_Airn"
+#name = "ntg04_rna_Airn"
+#name = "ntg08_rna_Airn"
+#name = "ntg12_rna_Airn"
+
+#name = "d165_krabair_rna_S9_R1_001"
+#name = "d165_krabrtta_rna_S10_R1_001"
+#name = "d165_vpair_rna_S7_R1_001"
+#name = "d165_vprtta_rna_S8_R1_001"
+#name = "d91_krab_air_rna_S11_R1_001"
+#name = "d91_krab_rtta_rna_S12_R1_001"
+#name = "d91_vp_air_rna_S9_R1_001"
+#name = "d91_vp_rtta_rna_S10_R1_001"
+
+#name = "d165_krabair_rna_S9_R1_001_Airn"
+#name = "d165_krabrtta_rna_S10_R1_001_Airn"
+#name = "d165_vpair_rna_S7_R1_001_Airn"
+#name = "d165_vprtta_rna_S8_R1_001_Airn"
+#name = "d91_krab_air_rna_S11_R1_001_Airn"
+#name = "d91_krab_rtta_rna_S12_R1_001_Airn"
+#name = "d91_vp_air_rna_S9_R1_001_Airn"
+name = "d91_vp_rtta_rna_S10_R1_001_Airn"
+
+file = "/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/04_20_23/Updated_files/"
+
+
+
+```
+
+
+
+```{r}
+## creates full file name
+
+genes.name = paste(name, "fc", sep="_")
+
+fc <- read_tsv(file=paste(file, genes.name, sep=""), col_names = TRUE, skip = 1)
+
+
+```
+
+Read in featureCounts data for all genes
+```{r}
+fc <- read_tsv(file=paste(file, genes.name, sep=""), col_names = TRUE, skip = 1)
+file.name = colnames(fc[,c(7)])
+fc.genes = fc %>% rename(Counts=file.name)
+
+```
+
+
+```{r}
+
+
+## read in file with read counts per sample
+## wc -l *q30.sam (117 lines are header)
+read.counts <- read.table(file="/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/04_20_23/Updated_files/read_counts.txt", header = TRUE, stringsAsFactors = FALSE)
+read.counts$Reads <- (read.counts$Reads)/1000000
+for (row in 1:nrow(read.counts)) {
+  if(name == read.counts[row, "Dataset"]) {
+    reads <- read.counts[row, "Reads"]
+  }
+}
+print(reads)  
+## Calculate RPKM for each RNA transcript
+
+rpkm = fc.genes %>% 
+  mutate(RPM=Counts/reads) %>% 
+  mutate(RPKM=RPM/(Length/1000))
+  
+head(rpkm) 
+
+## select genes of interest
+rpkm = rpkm %>% filter(.,  Geneid=="ENSMUSG00000101609.2"|
+ Geneid=="ENSMUSG00000078247.5"|
+ Geneid=="ENSMUSG00000086503.4"| Geneid=="Airn89"| Geneid=="Kcnq1ot1" | Geneid=="Airn" | Geneid=="Xist") %>% 
+  rename(., !!name:=RPKM) %>% 
+  select(., 1,9) 
+
+rpkm 
+
+if(exists('lncRNAs_RPKM')) {
+  lncRNAs_RPKM = lncRNAs_RPKM %>% full_join(., rpkm)
+}else{
+    lncRNAs_RPKM = rpkm
+  }
+print(lncRNAs_RPKM)
+
+write_tsv(lncRNAs_RPKM, file = "/Users/mmurvin/Library/CloudStorage/OneDrive-Personal/Computational/Airn_RMCE_splicing_MPC/04_20_23/Updated_files/lncRNA_RPKM.txt")
+```
+
